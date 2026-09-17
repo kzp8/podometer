@@ -35,7 +35,7 @@ struct DashboardView: View {
             .navigationTitle("AuraSteps")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     demoButton
                 }
             }

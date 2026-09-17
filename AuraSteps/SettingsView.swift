@@ -424,8 +424,8 @@ struct SettingsView: View {
                 .foregroundColor(.gray)
             
             Button(action: {
-                let generator = UIImpactFeedbackGenerator(style: .warning)
-                generator.impactOccurred()
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.warning)
                 showDeleteConfirmation = true
             }) {
                 HStack {
