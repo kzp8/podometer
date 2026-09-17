@@ -7,7 +7,7 @@ import Combine
 public struct DailySummary: Identifiable, Codable, Sendable {
     public var id: String { dateString }
     public let date: Date
-    public let dateString: String // Formato YYYY-MM-DD
+    public let dateString: String
     public let steps: Int
     public let distanceKm: Double
     public let caloriesKcal: Int
@@ -28,11 +28,9 @@ public struct DailySummary: Identifiable, Codable, Sendable {
     }
 }
 
-/// Gestor principal del podómetro en tiempo real con CoreMotion y HealthKit.
-/// Diseñado para máxima eficiencia energética y compatible con iOS 16.0+.
+/// Gestor principal del podómetro en tiempo real con CoreMotion y HealthKit (100% seguro sin force-unwraps).
 @MainActor
 public final class StepMotionManager: ObservableObject {
-    // MARK: - Propiedades de Estado Publicadas (iOS 16+)
     @Published public var todaySteps: Int = 0
     @Published public var todayGoal: Int = 10000
     @Published public var todayDistanceKm: Double = 0.0
@@ -47,9 +45,8 @@ public final class StepMotionManager: ObservableObject {
     @Published public var isDemoMode: Bool = false
     @Published public var errorMessage: String? = nil
     
-    // MARK: - Componentes Privados
-    private let pedometer = CMPedometer()
-    private let healthStore = HKHealthStore()
+    private lazy var pedometer = CMPedometer()
+    private lazy var healthStore = HKHealthStore()
     private var observerQuery: HKObserverQuery?
     
     public init() {
@@ -59,9 +56,6 @@ public final class StepMotionManager: ObservableObject {
         #endif
     }
     
-    // MARK: - Control de Seguimiento en Vivo (CoreMotion)
-    
-    /// Inicia la lectura del podómetro en tiempo real (invocado cuando ScenePhase == .active).
     public func startLiveTracking() {
         guard !isDemoMode else {
             loadDemoData()
@@ -101,7 +95,6 @@ public final class StepMotionManager: ObservableObject {
         }
     }
     
-    /// Detiene inmediatamente los updates del coprocesador para conservar batería (invocado en background/inactive).
     public func stopLiveTracking() {
         guard !isDemoMode else {
             isLiveTracking = false
@@ -111,21 +104,29 @@ public final class StepMotionManager: ObservableObject {
         isLiveTracking = false
     }
     
-    // MARK: - Integración y Consolidación con HealthKit
+    // MARK: - HealthKit Desenvuelto de Forma Segura (Sin Force-Unwraps !)
     
-    /// Solicita permisos de HealthKit para lectura de métricas deportivas básicas.
     public func requestHealthKitAuthorization() async {
         guard HKHealthStore.isHealthDataAvailable() else {
-            self.errorMessage = "HealthKit no está disponible en este dispositivo."
+            self.errorMessage = "HealthKit no está disponible."
             return
         }
         
-        let readTypes: Set<HKObjectType> = [
-            HKQuantityType.quantityType(forIdentifier: .stepCount)!,
-            HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!,
-            HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
-            HKQuantityType.quantityType(forIdentifier: .flightsClimbed)!
-        ]
+        var readTypes: Set<HKObjectType> = []
+        if let stepsType = HKQuantityType.quantityType(forIdentifier: .stepCount) {
+            readTypes.insert(stepsType)
+        }
+        if let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
+            readTypes.insert(distanceType)
+        }
+        if let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
+            readTypes.insert(energyType)
+        }
+        if let flightsType = HKQuantityType.quantityType(forIdentifier: .flightsClimbed) {
+            readTypes.insert(flightsType)
+        }
+        
+        guard !readTypes.isEmpty else { return }
         
         do {
             try await healthStore.requestAuthorization(toShare: [], read: readTypes)
@@ -134,11 +135,10 @@ public final class StepMotionManager: ObservableObject {
             await fetchWeeklySummaryFromHealthKit()
             setupBackgroundDelivery()
         } catch {
-            self.errorMessage = "Autorización de HealthKit denegada: \(error.localizedDescription)"
+            self.errorMessage = "Autorización de HealthKit: \(error.localizedDescription)"
         }
     }
     
-    /// Carga las métricas del día actual desde HealthKit.
     public func fetchTodayHealthKitData() async {
         guard isHealthKitAuthorized && !isDemoMode else { return }
         
@@ -162,7 +162,6 @@ public final class StepMotionManager: ObservableObject {
         await fetchHourlySteps()
     }
     
-    /// Obtiene el desglose por horas del día actual.
     private func fetchHourlySteps() async {
         guard isHealthKitAuthorized && !isDemoMode else { return }
         guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return }
@@ -202,7 +201,6 @@ public final class StepMotionManager: ObservableObject {
         healthStore.execute(query)
     }
     
-    /// Consolida el historial de los últimos 7 días.
     public func fetchWeeklySummaryFromHealthKit() async {
         guard isHealthKitAuthorized && !isDemoMode else { return }
         guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return }
@@ -244,13 +242,12 @@ public final class StepMotionManager: ObservableObject {
         healthStore.execute(query)
     }
     
-    /// Habilita las notificaciones en segundo plano cuando HealthKit detecte nuevos pasos.
     private func setupBackgroundDelivery() {
         guard isHealthKitAuthorized, let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return }
         
         healthStore.enableBackgroundDelivery(for: stepType, frequency: .hourly) { success, error in
             if let error = error {
-                print("Error habilitando background delivery de HealthKit: \(error.localizedDescription)")
+                print("Background delivery: \(error.localizedDescription)")
             }
         }
         
@@ -267,8 +264,6 @@ public final class StepMotionManager: ObservableObject {
         self.observerQuery = observer
         healthStore.execute(observer)
     }
-    
-    // MARK: - Guideline 2.1: Modo Demo/Mock para Revisores de Apple
     
     public func toggleDemoMode(_ enabled: Bool) {
         self.isDemoMode = enabled

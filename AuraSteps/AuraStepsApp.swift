@@ -28,7 +28,9 @@ struct AuraStepsApp: App {
                 deepLinkManager.handleURL(url)
             }
             .task {
-                await motionManager.requestHealthKitAuthorization()
+                if HKHealthStore.isHealthDataAvailable() {
+                    await motionManager.requestHealthKitAuthorization()
+                }
             }
         }
     }
