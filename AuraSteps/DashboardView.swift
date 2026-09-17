@@ -183,7 +183,7 @@ struct DashboardView: View {
             if !motionManager.weeklySummary.isEmpty {
                 Chart(motionManager.weeklySummary) { day in
                     BarMark(
-                        x: .value("Día", day.date, format: .dateTime.weekday(.short)),
+                        x: .value("Día", day.date.formatted(.dateTime.weekday(.short))),
                         y: .value("Pasos", day.steps)
                     )
                     .cornerRadius(6)
@@ -210,8 +210,8 @@ struct DashboardView: View {
                 .chartXAxis {
                     AxisMarks { value in
                         AxisValueLabel {
-                            if let dateVal = value.as(Date.self) {
-                                Text(dateVal, format: .dateTime.weekday(.short))
+                            if let stringVal = value.as(String.self) {
+                                Text(stringVal)
                                     .foregroundColor(.white)
                                     .font(.caption)
                             }
