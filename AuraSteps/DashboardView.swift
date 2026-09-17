@@ -430,3 +430,37 @@ struct DashboardView: View {
         }
     }
 }
+
+/// Componente reutilizable para cada tarjeta de métrica secundaria.
+struct MetricCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let cardColor: Color
+    let accentColor: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundColor(accentColor)
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(16)
+        .background(cardColor)
+        .cornerRadius(18)
+    }
+}
+

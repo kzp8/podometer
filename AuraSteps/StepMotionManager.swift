@@ -71,6 +71,16 @@ public final class StepMotionManager: ObservableObject {
     @Published public var monthlySummary: [DailySummary] = []
     @Published public var isLoadingHistory: Bool = false
     
+    public var hourlySteps: [String: Int] {
+        var dict: [String: Int] = [:]
+        for entry in selectedDayHourly {
+            if entry.steps > 0 {
+                dict[entry.hourString] = entry.steps
+            }
+        }
+        return dict
+    }
+    
     @Published public var isLiveTracking: Bool = false
     @Published public var isHealthKitAuthorized: Bool = false
     @Published public var isDemoMode: Bool = false
@@ -149,8 +159,6 @@ public final class StepMotionManager: ObservableObject {
             return
         }
         
-        let calendar = Calendar.current
-        
         switch selectedHistoryPeriod {
         case .day:
             await fetchHourlyBreakdown(for: selectedHistoryDate)
@@ -184,7 +192,6 @@ public final class StepMotionManager: ObservableObject {
                     
                     for h in 0..<24 {
                         let hourStart = calendar.date(byAdding: .hour, value: h, to: startOfDay)!
-                        let hourEnd = calendar.date(byAdding: .hour, value: h + 1, to: startOfDay)!
                         var hourSteps = 0
                         
                         if let statistics = results?.statistics(for: hourStart), let sum = statistics.sumQuantity() {
