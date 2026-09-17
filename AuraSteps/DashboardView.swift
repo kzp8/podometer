@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 
-/// Vista principal Dashboard con anillo animado, métricas interactivas y selector de historial (Día/Semana/Mes) con desglose hora por hora.
+/// Vista principal Dashboard con anillo animado en tiempo real, micro-animaciones fluidas, métricas interactivas y desgloses.
 struct DashboardView: View {
     @EnvironmentObject private var motionManager: StepMotionManager
     @EnvironmentObject private var userSettings: UserSettingsManager
@@ -10,6 +10,9 @@ struct DashboardView: View {
     
     @State private var animatedProgress: Double = 0.0
     @State private var showActiveTimeInfo: Bool = false
+    @State private var isGlowPulsing: Bool = false
+    @State private var isIconBouncing: Bool = false
+    @State private var pressedCardIndex: Int? = nil
     
     var body: some View {
         NavigationStack {
@@ -43,6 +46,7 @@ struct DashboardView: View {
             }
             .onAppear {
                 updateProgressAnimation()
+                startGlowPulseAnimation()
                 motionManager.startLiveTracking()
                 Task {
                     await motionManager.fetchHistoryForSelectedDate()
@@ -50,15 +54,20 @@ struct DashboardView: View {
             }
             .onChange(of: motionManager.todaySteps) { _ in
                 updateProgressAnimation()
+                triggerIconBounce()
             }
             .onChange(of: motionManager.selectedHistoryDate) { _ in
-                Task {
-                    await motionManager.fetchHistoryForSelectedDate()
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    Task {
+                        await motionManager.fetchHistoryForSelectedDate()
+                    }
                 }
             }
             .onChange(of: motionManager.selectedHistoryPeriod) { _ in
-                Task {
-                    await motionManager.fetchHistoryForSelectedDate()
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    Task {
+                        await motionManager.fetchHistoryForSelectedDate()
+                    }
                 }
             }
             .onChange(of: scenePhase) { newPhase in
@@ -71,11 +80,12 @@ struct DashboardView: View {
         }
     }
     
-    // MARK: - Subvistas
+    // MARK: - Subvistas Animadas
     
     private var demoBannerView: some View {
         HStack {
             Image(systemName: "flask.fill")
+                .rotationEffect(.degrees(isGlowPulsing ? 10 : -10))
             Text("Modo Demostración Activo")
                 .font(.caption)
                 .fontWeight(.bold)
@@ -85,6 +95,8 @@ struct DashboardView: View {
         .padding(.horizontal, 16)
         .background(themeManager.accentColor)
         .cornerRadius(20)
+        .shadow(color: themeManager.accentColor.opacity(isGlowPulsing ? 0.6 : 0.2), radius: isGlowPulsing ? 10 : 4)
+        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isGlowPulsing)
         .padding(.top, 4)
     }
     
@@ -96,15 +108,24 @@ struct DashboardView: View {
             
             VStack(spacing: 20) {
                 ZStack {
+                    // Aura pulsante de fondo
+                    Circle()
+                        .stroke(themeManager.accentColor.opacity(isGlowPulsing ? 0.25 : 0.05), lineWidth: 28)
+                        .frame(width: 200, height: 200)
+                        .scaleEffect(isGlowPulsing ? 1.08 : 1.0)
+                        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isGlowPulsing)
+                    
+                    // Anillo estático de carril
                     Circle()
                         .stroke(Color.white.opacity(0.08), lineWidth: 18)
                         .frame(width: 200, height: 200)
                     
+                    // Anillo de progreso dinámico animado
                     Circle()
                         .trim(from: 0, to: animatedProgress)
                         .stroke(
                             AngularGradient(
-                                gradient: Gradient(colors: [themeManager.accentColor.opacity(0.6), themeManager.accentColor]),
+                                gradient: Gradient(colors: [themeManager.accentColor.opacity(0.5), themeManager.accentColor]),
                                 center: .center,
                                 startAngle: .degrees(-90),
                                 endAngle: .degrees(270)
@@ -113,16 +134,19 @@ struct DashboardView: View {
                         )
                         .rotationEffect(.degrees(-90))
                         .frame(width: 200, height: 200)
-                        .shadow(color: themeManager.accentColor.opacity(0.4), radius: 8, x: 0, y: 0)
+                        .shadow(color: themeManager.accentColor.opacity(0.5), radius: 10, x: 0, y: 0)
                     
                     VStack(spacing: 4) {
                         Image(systemName: "figure.walk")
                             .font(.title2)
                             .foregroundColor(themeManager.accentColor)
+                            .scaleEffect(isIconBouncing ? 1.3 : 1.0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isIconBouncing)
                         
                         Text("\(motionManager.todaySteps)")
                             .font(.system(size: 42, weight: .black, design: .rounded))
                             .foregroundColor(.white)
+                            .contentTransition(.numericText())
                         
                         Text("de \(motionManager.todayGoal) pasos")
                             .font(.caption)
@@ -155,37 +179,49 @@ struct DashboardView: View {
                 value: String(format: "%.2f km", currentDist),
                 icon: "map.fill",
                 cardColor: themeManager.cardColor,
-                accentColor: themeManager.accentColor
+                accentColor: themeManager.accentColor,
+                isPressed: pressedCardIndex == 0
             )
+            .onTapGesture {
+                animateCardTap(index: 0)
+            }
             
             MetricCard(
                 title: "Calorías",
                 value: "\(currentCal) kcal",
                 icon: "flame.fill",
                 cardColor: themeManager.cardColor,
-                accentColor: themeManager.accentColor
+                accentColor: themeManager.accentColor,
+                isPressed: pressedCardIndex == 1
             )
+            .onTapGesture {
+                animateCardTap(index: 1)
+            }
             
             MetricCard(
                 title: "Pisos Subidos",
                 value: "\(motionManager.todayFloors)",
                 icon: "building.2.fill",
                 cardColor: themeManager.cardColor,
-                accentColor: themeManager.accentColor
+                accentColor: themeManager.accentColor,
+                isPressed: pressedCardIndex == 2
             )
-            
-            Button(action: {
-                showActiveTimeInfo = true
-            }) {
-                MetricCard(
-                    title: "Tiempo Activo ℹ️",
-                    value: "\(motionManager.todayActiveMinutes) min",
-                    icon: "clock.fill",
-                    cardColor: themeManager.cardColor,
-                    accentColor: themeManager.accentColor
-                )
+            .onTapGesture {
+                animateCardTap(index: 2)
             }
-            .buttonStyle(.plain)
+            
+            MetricCard(
+                title: "Tiempo Activo ℹ️",
+                value: "\(motionManager.todayActiveMinutes) min",
+                icon: "clock.fill",
+                cardColor: themeManager.cardColor,
+                accentColor: themeManager.accentColor,
+                isPressed: pressedCardIndex == 3
+            )
+            .onTapGesture {
+                animateCardTap(index: 3)
+                showActiveTimeInfo = true
+            }
         }
         .padding(.horizontal)
     }
@@ -230,15 +266,18 @@ struct DashboardView: View {
             
             Divider().background(Color.white.opacity(0.1))
             
-            // Contenido dinámico según el período elegido
-            switch motionManager.selectedHistoryPeriod {
-            case .day:
-                hourlyBreakdownView
-            case .week:
-                weeklyChartView
-            case .month:
-                monthlyChartView
+            // Contenido dinámico animado según el período elegido
+            Group {
+                switch motionManager.selectedHistoryPeriod {
+                case .day:
+                    hourlyBreakdownView
+                case .week:
+                    weeklyChartView
+                case .month:
+                    monthlyChartView
+                }
             }
+            .transition(.opacity.combined(with: .scale(scale: 0.95)))
         }
         .padding(20)
         .background(themeManager.cardColor)
@@ -283,6 +322,7 @@ struct DashboardView: View {
                         }
                     }
                 }
+                .animation(.easeInOut(duration: 0.5), value: motionManager.selectedDayHourly.map { $0.steps })
             }
             
             if !activeEntries.isEmpty {
@@ -308,10 +348,10 @@ struct DashboardView: View {
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
                         .background(Color.white.opacity(0.04))
-                        .cornerRadius(8)
+                        .cornerRadius(10)
                     }
                 }
             } else {
@@ -343,6 +383,7 @@ struct DashboardView: View {
                         .foregroundStyle(Color.gray)
                 }
                 .frame(height: 180)
+                .animation(.easeInOut(duration: 0.5), value: motionManager.weeklySummary.map { $0.steps })
                 
                 VStack(spacing: 8) {
                     ForEach(motionManager.weeklySummary) { day in
@@ -403,6 +444,7 @@ struct DashboardView: View {
                     .foregroundStyle(themeManager.accentColor.opacity(0.8))
                 }
                 .frame(height: 160)
+                .animation(.easeInOut(duration: 0.5), value: motionManager.monthlySummary.map { $0.steps })
             }
         }
     }
@@ -411,10 +453,14 @@ struct DashboardView: View {
         Button(action: {
             let generator = UIImpactFeedbackGenerator(style: .medium)
             generator.impactOccurred()
-            motionManager.toggleDemoMode(!motionManager.isDemoMode)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                motionManager.toggleDemoMode(!motionManager.isDemoMode)
+            }
         }) {
             Image(systemName: motionManager.isDemoMode ? "flask.fill" : "flask")
                 .foregroundColor(motionManager.isDemoMode ? themeManager.accentColor : .gray)
+                .scaleEffect(motionManager.isDemoMode ? 1.15 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: motionManager.isDemoMode)
         }
     }
     
@@ -424,19 +470,44 @@ struct DashboardView: View {
     }
     
     private func updateProgressAnimation() {
-        withAnimation(.easeOut(duration: 1.0)) {
+        withAnimation(.easeOut(duration: 1.2)) {
             self.animatedProgress = progressRatio
+        }
+    }
+    
+    private func startGlowPulseAnimation() {
+        isGlowPulsing = true
+    }
+    
+    private func triggerIconBounce() {
+        isIconBouncing = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            isIconBouncing = false
+        }
+    }
+    
+    private func animateCardTap(index: Int) {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+            pressedCardIndex = index
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                pressedCardIndex = nil
+            }
         }
     }
 }
 
-/// Componente reutilizable para cada tarjeta de métrica secundaria.
+/// Componente reutilizable para cada tarjeta de métrica secundaria con soporte para micro-animaciones al pulsar.
 struct MetricCard: View {
     let title: String
     let value: String
     let icon: String
     let cardColor: Color
     let accentColor: Color
+    var isPressed: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -444,6 +515,8 @@ struct MetricCard: View {
                 Image(systemName: icon)
                     .font(.subheadline)
                     .foregroundColor(accentColor)
+                    .scaleEffect(isPressed ? 1.25 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
                 Spacer()
             }
             
@@ -460,6 +533,8 @@ struct MetricCard: View {
         .padding(16)
         .background(cardColor)
         .cornerRadius(18)
+        .scaleEffect(isPressed ? 0.94 : 1.0)
+        .shadow(color: isPressed ? accentColor.opacity(0.3) : .clear, radius: 8)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
     }
 }
-

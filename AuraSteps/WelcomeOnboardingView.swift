@@ -1,11 +1,15 @@
 import SwiftUI
 
-/// Vista de bienvenida u onboarding inicial para la recogida de datos antropométricos y personalización de tema.
+/// Vista de bienvenida u onboarding inicial para la recogida de datos antropométricos y personalización de tema con animaciones interactivas.
 struct WelcomeOnboardingView: View {
     @EnvironmentObject private var userSettings: UserSettingsManager
     @EnvironmentObject private var themeManager: ThemeManager
     
     let onComplete: () -> Void
+    
+    @State private var isVisible: Bool = false
+    @State private var isPulsing: Bool = false
+    @State private var isButtonPressed: Bool = false
     
     var body: some View {
         ZStack {
@@ -15,20 +19,36 @@ struct WelcomeOnboardingView: View {
                 VStack(spacing: 24) {
                     // MARK: - Cabecera
                     headerSection
+                        .offset(y: isVisible ? 0 : 30)
+                        .opacity(isVisible ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1), value: isVisible)
                     
                     // MARK: - Datos Biométricos
                     biometricFormSection
+                        .offset(y: isVisible ? 0 : 40)
+                        .opacity(isVisible ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: isVisible)
                     
                     // MARK: - Personalización Visual (Tema)
                     themeFormSection
+                        .offset(y: isVisible ? 0 : 50)
+                        .opacity(isVisible ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: isVisible)
                     
                     // MARK: - Botón de Comienzo
                     startButton
+                        .offset(y: isVisible ? 0 : 60)
+                        .opacity(isVisible ? 1 : 0)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.4), value: isVisible)
                 }
                 .padding(.vertical, 24)
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            isVisible = true
+            isPulsing = true
+        }
     }
     
     // MARK: - Subvistas
@@ -39,7 +59,9 @@ struct WelcomeOnboardingView: View {
                 .font(.system(size: 70))
                 .foregroundColor(themeManager.accentColor)
                 .padding(.top, 12)
-                .shadow(color: themeManager.accentColor.opacity(0.4), radius: 10)
+                .scaleEffect(isPulsing ? 1.05 : 0.95)
+                .shadow(color: themeManager.accentColor.opacity(isPulsing ? 0.6 : 0.2), radius: isPulsing ? 14 : 6)
+                .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isPulsing)
             
             Text("¡Bienvenido a AuraSteps!")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -79,6 +101,7 @@ struct WelcomeOnboardingView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(themeManager.accentColor)
+                        .contentTransition(.numericText())
                 }
                 
                 Slider(value: $userSettings.weightKg, in: 40...180, step: 1)
@@ -99,6 +122,7 @@ struct WelcomeOnboardingView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(themeManager.accentColor)
+                        .contentTransition(.numericText())
                 }
                 
                 Slider(value: $userSettings.heightCm, in: 120...220, step: 1)
@@ -146,19 +170,23 @@ struct WelcomeOnboardingView: View {
                 
                 HStack {
                     ForEach(AccentColorPreset.allCases) { preset in
+                        let isSelected = themeManager.accentPreset == preset
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                 themeManager.accentPreset = preset
                             }
                         }) {
                             Circle()
                                 .fill(preset.color)
                                 .frame(width: 36, height: 36)
+                                .scaleEffect(isSelected ? 1.2 : 1.0)
                                 .overlay(
                                     Circle()
-                                        .stroke(Color.white, lineWidth: themeManager.accentPreset == preset ? 3 : 0)
+                                        .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
                                 )
-                                .shadow(color: preset.color.opacity(themeManager.accentPreset == preset ? 0.6 : 0.25), radius: themeManager.accentPreset == preset ? 6 : 2)
+                                .shadow(color: preset.color.opacity(isSelected ? 0.7 : 0.2), radius: isSelected ? 8 : 2)
                         }
                         if preset != AccentColorPreset.allCases.last {
                             Spacer()
@@ -176,8 +204,11 @@ struct WelcomeOnboardingView: View {
                 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(BackgroundColorPreset.allCases) { bgPreset in
+                        let isSelected = themeManager.backgroundPreset == bgPreset
                         Button(action: {
-                            withAnimation {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                 themeManager.backgroundPreset = bgPreset
                             }
                         }) {
@@ -190,16 +221,17 @@ struct WelcomeOnboardingView: View {
                                 Text(bgPreset.rawValue)
                                     .font(.caption)
                                     .fontWeight(.semibold)
-                                    .foregroundColor(themeManager.backgroundPreset == bgPreset ? themeManager.accentColor : .white)
+                                    .foregroundColor(isSelected ? themeManager.accentColor : .white)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .padding(.horizontal, 8)
                             .background(bgPreset.cardColor)
                             .cornerRadius(12)
+                            .scaleEffect(isSelected ? 1.03 : 1.0)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(themeManager.backgroundPreset == bgPreset ? themeManager.accentColor : Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isSelected ? themeManager.accentColor : Color.white.opacity(0.1), lineWidth: isSelected ? 2 : 1)
                             )
                         }
                     }
@@ -214,8 +246,15 @@ struct WelcomeOnboardingView: View {
     
     private var startButton: some View {
         Button(action: {
-            userSettings.hasCompletedOnboarding = true
-            onComplete()
+            let generator = UIImpactFeedbackGenerator(style: .heavy)
+            generator.impactOccurred()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                isButtonPressed = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                userSettings.hasCompletedOnboarding = true
+                onComplete()
+            }
         }) {
             HStack {
                 Text("Comenzar Experiencia")
@@ -229,7 +268,8 @@ struct WelcomeOnboardingView: View {
             .padding(.vertical, 16)
             .background(themeManager.accentColor)
             .cornerRadius(18)
-            .shadow(color: themeManager.accentColor.opacity(0.4), radius: 8, x: 0, y: 4)
+            .scaleEffect(isButtonPressed ? 0.95 : 1.0)
+            .shadow(color: themeManager.accentColor.opacity(0.5), radius: 10, x: 0, y: 4)
         }
         .padding(.horizontal)
         .padding(.top, 8)

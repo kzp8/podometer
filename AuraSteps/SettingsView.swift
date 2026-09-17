@@ -12,6 +12,8 @@ struct SettingsView: View {
     @State private var pingResultMessage: String? = nil
     @State private var showDeleteConfirmation = false
     @State private var deleteSuccessMessage: String? = nil
+    @State private var isQRButtonPressed = false
+    @State private var isPingButtonPressed = false
     
     var body: some View {
         NavigationStack {
@@ -50,11 +52,15 @@ struct SettingsView: View {
             .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {
                 Button("Cancelar", role: .cancel) {}
                 Button("Borrar Todo", role: .destructive) {
-                    deepLinkManager.deleteKeychainConfig()
-                    motionManager.clearAllData()
-                    userSettings.resetToDefaults()
-                    themeManager.resetToDefaults()
-                    deleteSuccessMessage = "Todos los datos locales, métricas y temas se han purgado."
+                    let generator = UIImpactFeedbackGenerator(style: .heavy)
+                    generator.impactOccurred()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                        deepLinkManager.deleteKeychainConfig()
+                        motionManager.clearAllData()
+                        userSettings.resetToDefaults()
+                        themeManager.resetToDefaults()
+                        deleteSuccessMessage = "Todos los datos locales, métricas y temas se han purgado."
+                    }
                 }
             } message: {
                 Text("Esta acción eliminará de forma irreversible el historial de pasos local, credenciales de Keychain y restablecerá los ajustes a sus valores por defecto.")
@@ -88,6 +94,7 @@ struct SettingsView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
+                        .contentTransition(.numericText())
                 }
                 
                 Slider(value: $userSettings.weightKg, in: 40...180, step: 1)
@@ -104,6 +111,7 @@ struct SettingsView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
+                        .contentTransition(.numericText())
                 }
                 
                 Slider(value: $userSettings.heightCm, in: 120...220, step: 1)
@@ -126,6 +134,7 @@ struct SettingsView: View {
                     }
                 }
                 .tint(themeManager.accentColor)
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: userSettings.isAutoStepLength)
                 
                 if !userSettings.isAutoStepLength {
                     VStack(alignment: .leading, spacing: 6) {
@@ -144,6 +153,7 @@ struct SettingsView: View {
                             .tint(themeManager.accentColor)
                     }
                     .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
@@ -217,7 +227,15 @@ struct SettingsView: View {
             
             VStack(spacing: 12) {
                 Button(action: {
-                    isPresentingQRScanner = true
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        isQRButtonPressed = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        isQRButtonPressed = false
+                        isPresentingQRScanner = true
+                    }
                 }) {
                     HStack {
                         Image(systemName: "qrcode.viewfinder")
@@ -230,20 +248,30 @@ struct SettingsView: View {
                     .padding(.vertical, 14)
                     .background(themeManager.accentColor)
                     .cornerRadius(16)
+                    .scaleEffect(isQRButtonPressed ? 0.95 : 1.0)
+                    .shadow(color: themeManager.accentColor.opacity(0.4), radius: 6)
                 }
                 
                 if let config = deepLinkManager.activeConfig {
                     Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                            isPingButtonPressed = true
+                        }
                         Task {
                             let success = await dispatcher.dispatchMetrics(
                                 config: config,
                                 motionManager: motionManager,
                                 isManualPing: true
                             )
-                            if success {
-                                pingResultMessage = "✓ Sincronización de prueba enviada con éxito (HTTP 200)."
-                            } else {
-                                pingResultMessage = "✕ Error en la sincronización de prueba."
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isPingButtonPressed = false
+                                if success {
+                                    pingResultMessage = "✓ Sincronización de prueba enviada con éxito (HTTP 200)."
+                                } else {
+                                    pingResultMessage = "✕ Error en la sincronización de prueba."
+                                }
                             }
                         }
                     }) {
@@ -263,6 +291,7 @@ struct SettingsView: View {
                         .padding(.vertical, 14)
                         .background(Color.white.opacity(0.1))
                         .cornerRadius(16)
+                        .scaleEffect(isPingButtonPressed ? 0.95 : 1.0)
                     }
                     .disabled(dispatcher.isSyncing)
                 }
@@ -272,6 +301,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundColor(pingMsg.contains("éxito") ? themeManager.accentColor : .red)
                         .padding(.top, 4)
+                        .transition(.opacity.combined(with: .scale))
                 }
             }
             .padding(.top, 4)
@@ -304,19 +334,23 @@ struct SettingsView: View {
                 
                 HStack {
                     ForEach(AccentColorPreset.allCases) { preset in
+                        let isSelected = themeManager.accentPreset == preset
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                 themeManager.accentPreset = preset
                             }
                         }) {
                             Circle()
                                 .fill(preset.color)
                                 .frame(width: 36, height: 36)
+                                .scaleEffect(isSelected ? 1.2 : 1.0)
                                 .overlay(
                                     Circle()
-                                        .stroke(Color.white, lineWidth: themeManager.accentPreset == preset ? 3 : 0)
+                                        .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
                                 )
-                                .shadow(color: preset.color.opacity(themeManager.accentPreset == preset ? 0.6 : 0.25), radius: themeManager.accentPreset == preset ? 6 : 2)
+                                .shadow(color: preset.color.opacity(isSelected ? 0.7 : 0.25), radius: isSelected ? 8 : 2)
                         }
                         if preset != AccentColorPreset.allCases.last {
                             Spacer()
@@ -334,8 +368,11 @@ struct SettingsView: View {
                 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(BackgroundColorPreset.allCases) { bgPreset in
+                        let isSelected = themeManager.backgroundPreset == bgPreset
                         Button(action: {
-                            withAnimation {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                 themeManager.backgroundPreset = bgPreset
                             }
                         }) {
@@ -348,16 +385,17 @@ struct SettingsView: View {
                                 Text(bgPreset.rawValue)
                                     .font(.caption)
                                     .fontWeight(.semibold)
-                                    .foregroundColor(themeManager.backgroundPreset == bgPreset ? themeManager.accentColor : .white)
+                                    .foregroundColor(isSelected ? themeManager.accentColor : .white)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .padding(.horizontal, 8)
                             .background(bgPreset.cardColor)
                             .cornerRadius(12)
+                            .scaleEffect(isSelected ? 1.03 : 1.0)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(themeManager.backgroundPreset == bgPreset ? themeManager.accentColor : Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(isSelected ? themeManager.accentColor : Color.white.opacity(0.1), lineWidth: isSelected ? 2 : 1)
                             )
                         }
                     }
@@ -386,6 +424,8 @@ struct SettingsView: View {
                 .foregroundColor(.gray)
             
             Button(action: {
+                let generator = UIImpactFeedbackGenerator(style: .warning)
+                generator.impactOccurred()
                 showDeleteConfirmation = true
             }) {
                 HStack {
@@ -409,6 +449,7 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(themeManager.accentColor)
                     .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .padding(20)
