@@ -21,17 +21,11 @@ struct AuraStepsApp: App {
                     }
                     .tag(0)
                 
-                ConnectionsView()
-                    .tabItem {
-                        Label("Conexiones", systemImage: "network")
-                    }
-                    .tag(1)
-                
                 SettingsView()
                     .tabItem {
                         Label("Ajustes", systemImage: "gearshape.fill")
                     }
-                    .tag(2)
+                    .tag(1)
             }
             .tint(themeManager.accentColor)
             .preferredColorScheme(.dark)

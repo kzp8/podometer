@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// Vista de Ajustes del usuario para personalizar parámetros biométricos, colores del tema y purgado de datos.
+/// Vista de Ajustes del usuario para personalizar parámetros biométricos, conexiones descentralizadas, colores del tema y purgado de datos.
 struct SettingsView: View {
     @EnvironmentObject private var userSettings: UserSettingsManager
     @EnvironmentObject private var themeManager: ThemeManager
     @EnvironmentObject private var deepLinkManager: DeepLinkManager
     @EnvironmentObject private var motionManager: StepMotionManager
+    @EnvironmentObject private var dispatcher: WebhookDispatcher
     
+    @State private var isPresentingQRScanner = false
+    @State private var pingResultMessage: String? = nil
     @State private var showDeleteConfirmation = false
     @State private var deleteSuccessMessage: String? = nil
     
@@ -18,6 +21,7 @@ struct SettingsView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
                         biometricSection
+                        connectionSection
                         themeSection
                         privacySection
                     }
@@ -26,6 +30,23 @@ struct SettingsView: View {
             }
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $isPresentingQRScanner) {
+                QRScannerSheet { scannedString in
+                    isPresentingQRScanner = false
+                    if let url = URL(string: scannedString) {
+                        deepLinkManager.handleURL(url)
+                    }
+                }
+            }
+            .sheet(isPresented: $deepLinkManager.isShowingConsentModal) {
+                if let pending = deepLinkManager.pendingConfig {
+                    ConsentModalView(config: pending, onConfirm: {
+                        deepLinkManager.confirmPendingConfig()
+                    }, onReject: {
+                        deepLinkManager.rejectPendingConfig()
+                    })
+                }
+            }
             .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {
                 Button("Cancelar", role: .cancel) {}
                 Button("Borrar Todo", role: .destructive) {
@@ -125,6 +146,135 @@ struct SettingsView: View {
                     .padding(.top, 4)
                 }
             }
+        }
+        .padding(20)
+        .background(themeManager.cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var connectionSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "network")
+                    .font(.title3)
+                    .foregroundColor(themeManager.accentColor)
+                
+                Text("Conexiones y Servidores")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                StatusBadge(isConnected: deepLinkManager.activeConfig != nil, accentColor: themeManager.accentColor)
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            if let config = deepLinkManager.activeConfig {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Plataforma:")
+                            .foregroundColor(.gray)
+                        Text(config.appName)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                    }
+                    
+                    HStack {
+                        Text("Endpoint HTTPS:")
+                            .foregroundColor(.gray)
+                        Text(config.endpoint.absoluteString)
+                            .font(.caption)
+                            .foregroundColor(themeManager.accentColor)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    
+                    HStack {
+                        Text("Token Cliente:")
+                            .foregroundColor(.gray)
+                        Text(maskedToken(config.token))
+                            .font(.caption)
+                            .monospaced()
+                            .foregroundColor(.white)
+                    }
+                }
+                .font(.subheadline)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Sin conexión activa")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    
+                    Text("Escanea un código QR provisto por tu gimnasio o abre un enlace 'aurasteps://connect' para transmitir métricas.")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            VStack(spacing: 12) {
+                Button(action: {
+                    isPresentingQRScanner = true
+                }) {
+                    HStack {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.title3)
+                        Text("Escanear Código QR")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(themeManager.accentColor)
+                    .cornerRadius(16)
+                }
+                
+                if let config = deepLinkManager.activeConfig {
+                    Button(action: {
+                        Task {
+                            let success = await dispatcher.dispatchMetrics(
+                                config: config,
+                                motionManager: motionManager,
+                                isManualPing: true
+                            )
+                            if success {
+                                pingResultMessage = "✓ Sincronización de prueba enviada con éxito (HTTP 200)."
+                            } else {
+                                pingResultMessage = "✕ Error en la sincronización de prueba."
+                            }
+                        }
+                    }) {
+                        HStack {
+                            if dispatcher.isSyncing {
+                                ProgressView()
+                                    .tint(.white)
+                                    .padding(.trailing, 4)
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                            }
+                            Text("Probar Envío (Ping)")
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(16)
+                    }
+                    .disabled(dispatcher.isSyncing)
+                }
+                
+                if let pingMsg = pingResultMessage {
+                    Text(pingMsg)
+                        .font(.caption)
+                        .foregroundColor(pingMsg.contains("éxito") ? themeManager.accentColor : .red)
+                        .padding(.top, 4)
+                }
+            }
+            .padding(.top, 4)
         }
         .padding(20)
         .background(themeManager.cardColor)
@@ -265,5 +415,11 @@ struct SettingsView: View {
         .background(themeManager.cardColor)
         .cornerRadius(24)
         .padding(.horizontal)
+    }
+    
+    private func maskedToken(_ token: String) -> String {
+        guard token.count > 6 else { return "••••••" }
+        let prefix = token.prefix(4)
+        return "\(prefix)••••••••"
     }
 }
