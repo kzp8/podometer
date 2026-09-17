@@ -1,0 +1,23 @@
+name: AuraSteps
+options:
+  bundleIdPrefix: com.aurasteps
+  deploymentTarget:
+    iOS: 16.0
+  developmentLanguage: es
+
+targets:
+  AuraSteps:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: AuraSteps
+    info:
+      path: AuraSteps/Info.plist
+      properties:
+        UILaunchScreen: {}
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.aurasteps.app
+      INFOPLIST_FILE: AuraSteps/Info.plist
+      GENERATE_INFOPLIST_FILE: NO
+      SWIFT_VERSION: "5.0"
