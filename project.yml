@@ -21,6 +21,8 @@ targets:
       - AuraSteps/UserSettingsManager.swift
       - AuraSteps/ThemeManager.swift
       - AuraSteps/WelcomeOnboardingView.swift
+      - AuraSteps/NotificationManager.swift
+      - AuraSteps/AchievementsManager.swift
       - AuraSteps/Assets.xcassets
     info:
       path: AuraSteps/Info.plist

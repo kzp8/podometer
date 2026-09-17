@@ -6,6 +6,8 @@ struct DashboardView: View {
     @EnvironmentObject private var motionManager: StepMotionManager
     @EnvironmentObject private var userSettings: UserSettingsManager
     @EnvironmentObject private var themeManager: ThemeManager
+    @EnvironmentObject private var notificationManager: NotificationManager
+    @EnvironmentObject private var achievementsManager: AchievementsManager
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var animatedProgress: Double = 0.0
@@ -26,6 +28,7 @@ struct DashboardView: View {
                         }
                         
                         stepRingCardView
+                        streakBannerView
                         metricsGridView
                         historyInteractiveSectionView
                     }
@@ -50,11 +53,26 @@ struct DashboardView: View {
                 motionManager.startLiveTracking()
                 Task { @MainActor in
                     await motionManager.fetchHistoryForSelectedDate()
+                    achievementsManager.updateStreak(weeklySummary: motionManager.weeklySummary, goal: motionManager.todayGoal)
+                    achievementsManager.evaluateProgress(
+                        steps: motionManager.todaySteps,
+                        goal: motionManager.todayGoal,
+                        floors: motionManager.todayFloors,
+                        totalDistanceKm: motionManager.todayDistanceKm,
+                        notificationManager: notificationManager
+                    )
                 }
             }
-            .onChange(of: motionManager.todaySteps) { _ in
+            .onChange(of: motionManager.todaySteps) { newSteps in
                 updateProgressAnimation()
                 triggerIconBounce()
+                achievementsManager.evaluateProgress(
+                    steps: newSteps,
+                    goal: motionManager.todayGoal,
+                    floors: motionManager.todayFloors,
+                    totalDistanceKm: motionManager.todayDistanceKm,
+                    notificationManager: notificationManager
+                )
             }
             .onChange(of: motionManager.selectedHistoryDate) { _ in
                 Task { @MainActor in
@@ -162,6 +180,48 @@ struct DashboardView: View {
             }
             .padding(20)
         }
+        .padding(.horizontal)
+    }
+    
+    private var streakBannerView: some View {
+        HStack(spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(themeManager.accentColor)
+                    .font(.title3)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(achievementsManager.currentStreakDays) Días")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    Text("Racha Actual")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                Image(systemName: "trophy.fill")
+                    .foregroundColor(themeManager.accentColor)
+                    .font(.title3)
+                VStack(alignment: .leading, spacing: 2) {
+                    let unlockedCount = achievementsManager.achievements.filter { $0.isUnlocked }.count
+                    Text("\(unlockedCount)/\(achievementsManager.achievements.count)")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    Text("Logros")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(themeManager.cardColor)
+        .cornerRadius(18)
         .padding(.horizontal)
     }
     
@@ -493,44 +553,5 @@ struct DashboardView: View {
                 pressedCardIndex = nil
             }
         }
-    }
-}
-
-/// Componente reutilizable para cada tarjeta de métrica secundaria con soporte para micro-animaciones al pulsar.
-struct MetricCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let cardColor: Color
-    let accentColor: Color
-    var isPressed: Bool = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundColor(accentColor)
-                    .scaleEffect(isPressed ? 1.25 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
-                Spacer()
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-        }
-        .padding(16)
-        .background(cardColor)
-        .cornerRadius(18)
-        .scaleEffect(isPressed ? 0.94 : 1.0)
-        .shadow(color: isPressed ? accentColor.opacity(0.3) : .clear, radius: 8)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
     }
 }

@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Vista de Ajustes del usuario para personalizar parámetros biométricos, conexiones descentralizadas, colores del tema y purgado de datos.
+/// Vista de Ajustes del usuario para personalizar parámetros biométricos, objetivos, recordatorios, insignias, conexiones descentralizadas, colores y purgado de datos.
 struct SettingsView: View {
     @EnvironmentObject private var userSettings: UserSettingsManager
     @EnvironmentObject private var themeManager: ThemeManager
     @EnvironmentObject private var deepLinkManager: DeepLinkManager
     @EnvironmentObject private var motionManager: StepMotionManager
     @EnvironmentObject private var dispatcher: WebhookDispatcher
+    @EnvironmentObject private var notificationManager: NotificationManager
+    @EnvironmentObject private var achievementsManager: AchievementsManager
     
     @State private var isPresentingQRScanner = false
     @State private var pingResultMessage: String? = nil
@@ -23,6 +25,8 @@ struct SettingsView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
                         biometricSection
+                        goalsAndRemindersSection
+                        achievementsGridSection
                         connectionSection
                         themeSection
                         privacySection
@@ -52,13 +56,14 @@ struct SettingsView: View {
             .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {
                 Button("Cancelar", role: .cancel) {}
                 Button("Borrar Todo", role: .destructive) {
-                    let generator = UIImpactFeedbackGenerator(style: .heavy)
-                    generator.impactOccurred()
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.warning)
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                         deepLinkManager.deleteKeychainConfig()
                         motionManager.clearAllData()
                         userSettings.resetToDefaults()
                         themeManager.resetToDefaults()
+                        achievementsManager.resetAchievements()
                         deleteSuccessMessage = "Todos los datos locales, métricas y temas se han purgado."
                     }
                 }
@@ -154,6 +159,207 @@ struct SettingsView: View {
                     }
                     .padding(.top, 4)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+        .padding(20)
+        .background(themeManager.cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var goalsAndRemindersSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "flag.checkered")
+                    .font(.title3)
+                    .foregroundColor(themeManager.accentColor)
+                Text("Objetivos y Recordatorios")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            // Meta Diaria de Pasos
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Meta Diaria:")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    Spacer()
+                    Text("\(motionManager.todayGoal) pasos")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(themeManager.accentColor)
+                }
+                
+                Slider(
+                    value: Binding(
+                        get: { Double(motionManager.todayGoal) },
+                        set: { motionManager.todayGoal = Int($0) }
+                    ),
+                    in: 3000...25000,
+                    step: 500
+                )
+                .tint(themeManager.accentColor)
+                
+                // Botones de presets rápidos
+                HStack(spacing: 8) {
+                    ForEach([5000, 8000, 10000, 12000, 15000], id: \.self) { preset in
+                        Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .light)
+                            generator.impactOccurred()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                motionManager.todayGoal = preset
+                            }
+                        }) {
+                            Text("\(preset / 1000)k")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(motionManager.todayGoal == preset ? .black : .white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(motionManager.todayGoal == preset ? themeManager.accentColor : Color.white.opacity(0.08))
+                                .cornerRadius(10)
+                        }
+                    }
+                }
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            // Notificaciones y Recordatorios
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Recordatorios Locales:")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    Spacer()
+                    if !notificationManager.isAuthorized {
+                        Button(action: {
+                            Task { @MainActor in
+                                _ = await notificationManager.requestAuthorization()
+                            }
+                        }) {
+                            Text("Activar Permisos")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.black)
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 12)
+                                .background(themeManager.accentColor)
+                                .cornerRadius(10)
+                        }
+                    }
+                }
+                
+                Toggle(isOn: $notificationManager.isDailyReminderEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Aviso Diario de Progreso")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                        Text("Recibe una notificación si aún no has completado tu objetivo")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .tint(themeManager.accentColor)
+                .disabled(!notificationManager.isAuthorized)
+                
+                if notificationManager.isDailyReminderEnabled {
+                    DatePicker(
+                        "Hora de aviso",
+                        selection: $notificationManager.dailyReminderTime,
+                        displayedComponents: [.hourAndMinute]
+                    )
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .tint(themeManager.accentColor)
+                }
+                
+                Toggle(isOn: $notificationManager.isInactivityReminderEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Alerta de Inactividad")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                        Text("Te avisa para hacer una pausa activa si pasas 2h sin moverte")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .tint(themeManager.accentColor)
+                .disabled(!notificationManager.isAuthorized)
+            }
+        }
+        .padding(20)
+        .background(themeManager.cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var achievementsGridSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .font(.title3)
+                    .foregroundColor(themeManager.accentColor)
+                Text("Logros e Insignias")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                Text("\(achievementsManager.currentStreakDays)d Racha 🔥")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(themeManager.accentColor)
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            VStack(spacing: 12) {
+                ForEach(achievementsManager.achievements) { badge in
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(badge.isUnlocked ? themeManager.accentColor.opacity(0.2) : Color.white.opacity(0.05))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: badge.iconName)
+                                .font(.title3)
+                                .foregroundColor(badge.isUnlocked ? themeManager.accentColor : .gray)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(badge.title)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundColor(badge.isUnlocked ? .white : .gray)
+                            Text(badge.description)
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        if badge.isUnlocked {
+                            Text("DESBLOQUEADO")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.black)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                                .background(themeManager.accentColor)
+                                .cornerRadius(8)
+                        } else {
+                            Image(systemName: "lock.fill")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(16)
                 }
             }
         }

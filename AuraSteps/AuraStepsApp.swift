@@ -8,6 +8,8 @@ struct AuraStepsApp: App {
     @StateObject private var dispatcher = WebhookDispatcher()
     @StateObject private var userSettings = UserSettingsManager()
     @StateObject private var themeManager = ThemeManager()
+    @StateObject private var notificationManager = NotificationManager()
+    @StateObject private var achievementsManager = AchievementsManager()
     
     @State private var selectedTab: Int = 0
     @State private var showOnboarding: Bool = false
@@ -34,6 +36,8 @@ struct AuraStepsApp: App {
             .environmentObject(dispatcher)
             .environmentObject(userSettings)
             .environmentObject(themeManager)
+            .environmentObject(notificationManager)
+            .environmentObject(achievementsManager)
             .onOpenURL { url in
                 deepLinkManager.handleURL(url)
             }
@@ -48,6 +52,8 @@ struct AuraStepsApp: App {
                 }
                 .environmentObject(userSettings)
                 .environmentObject(themeManager)
+                .environmentObject(notificationManager)
+                .environmentObject(achievementsManager)
                 .interactiveDismissDisabled(true)
             }
             .task {
