@@ -12,8 +12,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Tools (XcodeGen & ldid)
-        run: brew install xcodegen ldid
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Generate Xcode Project
         run: xcodegen generate
@@ -32,10 +32,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: Pseudo-Sign App with ldid & codesign for TrollStore
+      - name: CodeSign App for HealthKit & TrollStore
         run: |
           APP_PATH=$(find build -name "AuraSteps.app" | head -n 1)
-          ldid -SEntitlements.plist "$APP_PATH/AuraSteps"
           codesign -f -s - --entitlements Entitlements.plist "$APP_PATH"
 
       - name: Package IPA for TrollStore
