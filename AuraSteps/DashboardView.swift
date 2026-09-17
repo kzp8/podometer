@@ -48,7 +48,7 @@ struct DashboardView: View {
                 updateProgressAnimation()
                 startGlowPulseAnimation()
                 motionManager.startLiveTracking()
-                Task {
+                Task { @MainActor in
                     await motionManager.fetchHistoryForSelectedDate()
                 }
             }
@@ -57,17 +57,13 @@ struct DashboardView: View {
                 triggerIconBounce()
             }
             .onChange(of: motionManager.selectedHistoryDate) { _ in
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                    Task {
-                        await motionManager.fetchHistoryForSelectedDate()
-                    }
+                Task { @MainActor in
+                    await motionManager.fetchHistoryForSelectedDate()
                 }
             }
             .onChange(of: motionManager.selectedHistoryPeriod) { _ in
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                    Task {
-                        await motionManager.fetchHistoryForSelectedDate()
-                    }
+                Task { @MainActor in
+                    await motionManager.fetchHistoryForSelectedDate()
                 }
             }
             .onChange(of: scenePhase) { newPhase in

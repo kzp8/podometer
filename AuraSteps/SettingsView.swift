@@ -259,7 +259,7 @@ struct SettingsView: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                             isPingButtonPressed = true
                         }
-                        Task {
+                        Task { @MainActor in
                             let success = await dispatcher.dispatchMetrics(
                                 config: config,
                                 motionManager: motionManager,
