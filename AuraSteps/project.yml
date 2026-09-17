@@ -11,9 +11,9 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      - path: AuraSteps
+      - path: .
     info:
-      path: AuraSteps/Info.plist
+      path: Info.plist
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.aurasteps.app
       SWIFT_VERSION: "5.0"
