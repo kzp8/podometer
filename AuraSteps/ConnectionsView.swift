@@ -22,172 +22,9 @@ struct ConnectionsView: View {
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
-                        
-                        // MARK: - Estado de Vinculación Actual
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                Image(systemName: "network")
-                                    .font(.title3)
-                                    .foregroundColor(accentColor)
-                                
-                                Text("Servidor de Tercero")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                Spacer()
-                                
-                                StatusBadge(isConnected: deepLinkManager.activeConfig != nil, accentColor: accentColor)
-                            }
-                            
-                            Divider().background(Color.white.opacity(0.1))
-                            
-                            if let config = deepLinkManager.activeConfig {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        Text("Plataforma:")
-                                            .foregroundColor(.gray)
-                                        Text(config.appName)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.white)
-                                    }
-                                    
-                                    HStack {
-                                        Text("Endpoint HTTPS:")
-                                            .foregroundColor(.gray)
-                                        Text(config.endpoint.absoluteString)
-                                            .font(.caption)
-                                            .foregroundColor(accentColor)
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
-                                    }
-                                    
-                                    HStack {
-                                        Text("Token Cliente:")
-                                            .foregroundColor(.gray)
-                                        Text(maskedToken(config.token))
-                                            .font(.caption)
-                                            .monospaced()
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                .font(.subheadline)
-                            } else {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Sin conexión activa")
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(.white)
-                                    
-                                    Text("Escanea un código QR provisto por tu gimnasio o abre un enlace 'aurasteps://connect' para compartir tus métricas de forma directa.")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                        }
-                        .padding(20)
-                        .background(cardColor)
-                        .cornerRadius(24)
-                        .padding(.horizontal)
-                        
-                        // MARK: - Acciones de Conexión
-                        VStack(spacing: 12) {
-                            Button(action: {
-                                isPresentingQRScanner = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "qrcode.viewfinder")
-                                        .font(.title3)
-                                    Text("Escanear Código QR")
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(accentColor)
-                                .cornerRadius(16)
-                            }
-                            
-                            if let config = deepLinkManager.activeConfig {
-                                Button(action: {
-                                    Task {
-                                        let success = await dispatcher.dispatchMetrics(
-                                            config: config,
-                                            motionManager: motionManager,
-                                            isManualPing: true
-                                        )
-                                        if success {
-                                            pingResultMessage = " Sincronización de prueba enviada con éxito (HTTP 200)."
-                                        } else {
-                                            pingResultMessage = " Error en la sincronización de prueba."
-                                        }
-                                    }
-                                }) {
-                                    HStack {
-                                        if dispatcher.isSyncing {
-                                            ProgressView()
-                                                .tint(.white)
-                                                .padding(.trailing, 4)
-                                        } else {
-                                            Image(systemName: "paperplane.fill")
-                                        }
-                                        Text("Probar Envío (Ping)")
-                                            .fontWeight(.semibold)
-                                    }
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(Color.white.opacity(0.1))
-                                    .cornerRadius(16)
-                                }
-                                .disabled(dispatcher.isSyncing)
-                            }
-                            
-                            if let pingMsg = pingResultMessage {
-                                Text(pingMsg)
-                                    .font(.caption)
-                                    .foregroundColor(pingMsg.contains("éxito") ? accentColor : .red)
-                                    .padding(.top, 4)
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        // MARK: - Zona de Privacidad y Supresión Integral de Datos (Guideline 5.1.1(v))
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Image(systemName: "shield.trianglebadge.exclamationmark.fill")
-                                    .foregroundColor(.red)
-                                Text("Zona de Privacidad")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                            }
-                            
-                            Text("Puedes revocar todos los permisos y purgar completamente el historial de pasos, métricas temporales y credenciales de vinculación del dispositivo.")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            
-                            Button(action: {
-                                showDeleteConfirmation = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "trash.fill")
-                                    Text("Restablecer y Borrar Todos los Datos")
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundColor(.red)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.red.opacity(0.12))
-                                .cornerRadius(14)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                                )
-                            }
-                        }
-                        .padding(20)
-                        .background(cardColor)
-                        .cornerRadius(24)
-                        .padding(.horizontal)
+                        connectionStatusCard
+                        connectionActions
+                        privacySection
                     }
                     .padding(.vertical)
                 }
@@ -224,6 +61,180 @@ struct ConnectionsView: View {
         }
     }
     
+    // MARK: - Subvistas Modularizadas
+    
+    @ViewBuilder
+    private var connectionStatusCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "network")
+                    .font(.title3)
+                    .foregroundColor(accentColor)
+                
+                Text("Servidor de Tercero")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                StatusBadge(isConnected: deepLinkManager.activeConfig != nil, accentColor: accentColor)
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            if let config = deepLinkManager.activeConfig {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Plataforma:")
+                            .foregroundColor(.gray)
+                        Text(config.appName)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                    }
+                    
+                    HStack {
+                        Text("Endpoint HTTPS:")
+                            .foregroundColor(.gray)
+                        Text(config.endpoint.absoluteString)
+                            .font(.caption)
+                            .foregroundColor(accentColor)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    
+                    HStack {
+                        Text("Token Cliente:")
+                            .foregroundColor(.gray)
+                        Text(maskedToken(config.token))
+                            .font(.caption)
+                            .monospaced()
+                            .foregroundColor(.white)
+                    }
+                }
+                .font(.subheadline)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Sin conexión activa")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                    
+                    Text("Escanea un código QR provisto por tu gimnasio o abre un enlace 'aurasteps://connect' para compartir tus métricas de forma directa.")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding(20)
+        .background(cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var connectionActions: some View {
+        VStack(spacing: 12) {
+            Button(action: {
+                isPresentingQRScanner = true
+            }) {
+                HStack {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.title3)
+                    Text("Escanear Código QR")
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(accentColor)
+                .cornerRadius(16)
+            }
+            
+            if let config = deepLinkManager.activeConfig {
+                Button(action: {
+                    Task {
+                        let success = await dispatcher.dispatchMetrics(
+                            config: config,
+                            motionManager: motionManager,
+                            isManualPing: true
+                        )
+                        if success {
+                            pingResultMessage = " Sincronización de prueba enviada con éxito (HTTP 200)."
+                        } else {
+                            pingResultMessage = " Error en la sincronización de prueba."
+                        }
+                    }
+                }) {
+                    HStack {
+                        if dispatcher.isSyncing {
+                            ProgressView()
+                                .tint(.white)
+                                .padding(.trailing, 4)
+                        } else {
+                            Image(systemName: "paperplane.fill")
+                        }
+                        Text("Probar Envío (Ping)")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(16)
+                }
+                .disabled(dispatcher.isSyncing)
+            }
+            
+            if let pingMsg = pingResultMessage {
+                Text(pingMsg)
+                    .font(.caption)
+                    .foregroundColor(pingMsg.contains("éxito") ? accentColor : .red)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var privacySection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Image(systemName: "shield.trianglebadge.exclamationmark.fill")
+                    .foregroundColor(.red)
+                Text("Zona de Privacidad")
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            
+            Text("Puedes revocar todos los permisos y purgar completamente el historial de pasos, métricas temporales y credenciales de vinculación del dispositivo.")
+                .font(.caption)
+                .foregroundColor(.gray)
+            
+            Button(action: {
+                showDeleteConfirmation = true
+            }) {
+                HStack {
+                    Image(systemName: "trash.fill")
+                    Text("Restablecer y Borrar Todos los Datos")
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red.opacity(0.12))
+                .cornerRadius(14)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                )
+            }
+        }
+        .padding(20)
+        .background(cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
     private func maskedToken(_ token: String) -> String {
         guard token.count > 6 else { return "••••••" }
         let prefix = token.prefix(4)
@@ -252,7 +263,6 @@ struct StatusBadge: View {
     }
 }
 
-/// Modal nativo de consentimiento explícito (Guideline 5.1.1(i))
 struct ConsentModalView: View {
     let config: ConnectionConfig
     let onConfirm: () -> Void
@@ -324,7 +334,6 @@ struct ConsentModalView: View {
     }
 }
 
-/// Lector de QR integrado nativamente con AVFoundation
 struct QRScannerSheet: UIViewControllerRepresentable {
     let onScan: (String) -> Void
     
