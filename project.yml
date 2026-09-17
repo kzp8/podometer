@@ -11,11 +11,20 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      - path: AuraSteps
+      - AuraSteps/AuraStepsApp.swift
+      - AuraSteps/DashboardView.swift
+      - AuraSteps/ConnectionsView.swift
+      - AuraSteps/StepMotionManager.swift
+      - AuraSteps/DeepLinkManager.swift
+      - AuraSteps/WebhookDispatcher.swift
     info:
       path: AuraSteps/Info.plist
+      properties:
+        UILaunchScreen: {}
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.aurasteps.app
       SWIFT_VERSION: "5.0"
       IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: "NO"
       CODE_SIGNING_ALLOWED: "NO"

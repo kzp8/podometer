@@ -17,23 +17,18 @@ jobs:
 
       - name: Generate Xcode Project
         run: |
-          if [ -f "AuraSteps/project.yml" ]; then
-            cd AuraSteps && xcodegen generate
-          elif [ -f "project.yml" ]; then
+          if [ -f "project.yml" ]; then
             xcodegen generate
+          elif [ -f "AuraSteps/project.yml" ]; then
+            cd AuraSteps && xcodegen generate
           fi
-
-      - name: Find Xcode Project
-        id: find_proj
-        run: |
-          PROJ_PATH=$(find . -name "AuraSteps.xcodeproj" -maxdepth 2 | head -n 1)
-          echo "PROJ_PATH=$PROJ_PATH"
-          PROJ_DIR=$(dirname "$PROJ_PATH")
-          echo "PROJ_DIR=$PROJ_DIR" >> $GITHUB_ENV
 
       - name: Build Unsigned iOS App
         run: |
-          cd ${{ env.PROJ_DIR }}
+          PROJ=$(find . -name "AuraSteps.xcodeproj" | head -n 1)
+          PROJ_DIR=$(dirname "$PROJ")
+          echo "Compilando en la carpeta: $PROJ_DIR"
+          cd "$PROJ_DIR"
           xcodebuild build \
             -project AuraSteps.xcodeproj \
             -scheme AuraSteps \
@@ -43,11 +38,14 @@ jobs:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
 
       - name: Package IPA for TrollStore
         run: |
-          cd ${{ env.PROJ_DIR }}
+          PROJ=$(find . -name "AuraSteps.xcodeproj" | head -n 1)
+          PROJ_DIR=$(dirname "$PROJ")
+          cd "$PROJ_DIR"
           APP_PATH=$(find build -name "AuraSteps.app" | head -n 1)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
