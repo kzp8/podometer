@@ -24,7 +24,6 @@ struct SettingsView: View {
                     .padding(.vertical)
                 }
             }
-            .id(themeManager.themeId)
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
             .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {
@@ -153,27 +152,28 @@ struct SettingsView: View {
                     .font(.subheadline)
                     .foregroundColor(.gray)
                 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(AccentColorPreset.allCases) { preset in
-                            Button(action: {
-                                withAnimation {
-                                    themeManager.accentPreset = preset
-                                }
-                            }) {
-                                Circle()
-                                    .fill(preset.color)
-                                    .frame(width: 36, height: 36)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: themeManager.accentPreset == preset ? 3 : 0)
-                                    )
-                                    .shadow(color: preset.color.opacity(0.4), radius: 4)
+                HStack {
+                    ForEach(AccentColorPreset.allCases) { preset in
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                themeManager.accentPreset = preset
                             }
+                        }) {
+                            Circle()
+                                .fill(preset.color)
+                                .frame(width: 36, height: 36)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: themeManager.accentPreset == preset ? 3 : 0)
+                                )
+                                .shadow(color: preset.color.opacity(themeManager.accentPreset == preset ? 0.6 : 0.25), radius: themeManager.accentPreset == preset ? 6 : 2)
+                        }
+                        if preset != AccentColorPreset.allCases.last {
+                            Spacer()
                         }
                     }
-                    .padding(.vertical, 4)
                 }
+                .padding(.vertical, 8)
             }
             
             // Selector de Color de Fondo

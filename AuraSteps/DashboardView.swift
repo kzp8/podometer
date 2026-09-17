@@ -29,7 +29,6 @@ struct DashboardView: View {
                     .padding(.vertical)
                 }
             }
-            .id(themeManager.themeId) // Fuerza redibujado instantáneo de la UI al cambiar de tema
             .navigationTitle("AuraSteps")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

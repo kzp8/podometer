@@ -9,28 +9,31 @@ struct AuraStepsApp: App {
     @StateObject private var userSettings = UserSettingsManager()
     @StateObject private var themeManager = ThemeManager()
     
+    @State private var selectedTab: Int = 0
     @State private var showOnboarding: Bool = false
     
     var body: some Scene {
         WindowGroup {
-            TabView {
+            TabView(selection: $selectedTab) {
                 DashboardView()
                     .tabItem {
                         Label("Pasos", systemImage: "figure.walk")
                     }
+                    .tag(0)
                 
                 ConnectionsView()
                     .tabItem {
                         Label("Conexiones", systemImage: "network")
                     }
+                    .tag(1)
                 
                 SettingsView()
                     .tabItem {
                         Label("Ajustes", systemImage: "gearshape.fill")
                     }
+                    .tag(2)
             }
             .tint(themeManager.accentColor)
-            .id(themeManager.themeId) // Fuerza la actualización visual inmediata e instantánea de toda la app al cambiar de color
             .preferredColorScheme(.dark)
             .environmentObject(motionManager)
             .environmentObject(deepLinkManager)
