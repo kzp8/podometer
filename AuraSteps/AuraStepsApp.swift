@@ -6,6 +6,8 @@ struct AuraStepsApp: App {
     @StateObject private var motionManager = StepMotionManager()
     @StateObject private var deepLinkManager = DeepLinkManager()
     @StateObject private var dispatcher = WebhookDispatcher()
+    @StateObject private var userSettings = UserSettingsManager()
+    @StateObject private var themeManager = ThemeManager()
     
     var body: some Scene {
         WindowGroup {
@@ -19,12 +21,19 @@ struct AuraStepsApp: App {
                     .tabItem {
                         Label("Conexiones", systemImage: "network")
                     }
+                
+                SettingsView()
+                    .tabItem {
+                        Label("Ajustes", systemImage: "gearshape.fill")
+                    }
             }
-            .tint(Color(red: 163/255, green: 230/255, blue: 53/255))
+            .tint(themeManager.accentColor)
             .preferredColorScheme(.dark)
             .environmentObject(motionManager)
             .environmentObject(deepLinkManager)
             .environmentObject(dispatcher)
+            .environmentObject(userSettings)
+            .environmentObject(themeManager)
             .onOpenURL { url in
                 deepLinkManager.handleURL(url)
             }

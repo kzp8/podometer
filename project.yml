@@ -14,9 +14,12 @@ targets:
       - AuraSteps/AuraStepsApp.swift
       - AuraSteps/DashboardView.swift
       - AuraSteps/ConnectionsView.swift
+      - AuraSteps/SettingsView.swift
       - AuraSteps/StepMotionManager.swift
       - AuraSteps/DeepLinkManager.swift
       - AuraSteps/WebhookDispatcher.swift
+      - AuraSteps/UserSettingsManager.swift
+      - AuraSteps/ThemeManager.swift
     info:
       path: AuraSteps/Info.plist
       properties:

@@ -1,30 +1,25 @@
 import SwiftUI
 import AVFoundation
 
-/// Vista para la gestión de vinculación mediante Deep Links, escaneo de QR y purgado de datos (iOS 16+).
+/// Vista para la gestión de vinculación mediante Deep Links, escaneo de QR y prueba de transmisión (iOS 16+).
 struct ConnectionsView: View {
     @EnvironmentObject private var deepLinkManager: DeepLinkManager
     @EnvironmentObject private var motionManager: StepMotionManager
     @EnvironmentObject private var dispatcher: WebhookDispatcher
+    @EnvironmentObject private var themeManager: ThemeManager
     
     @State private var isPresentingQRScanner = false
-    @State private var showDeleteConfirmation = false
     @State private var pingResultMessage: String? = nil
-    
-    private let backgroundColor = Color(red: 9/255, green: 9/255, blue: 11/255)
-    private let cardColor = Color(red: 18/255, green: 18/255, blue: 22/255)
-    private let accentColor = Color(red: 163/255, green: 230/255, blue: 53/255)
     
     var body: some View {
         NavigationStack {
             ZStack {
-                backgroundColor.ignoresSafeArea()
+                themeManager.backgroundColor.ignoresSafeArea()
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
                         connectionStatusCard
                         connectionActions
-                        privacySection
                     }
                     .padding(.vertical)
                 }
@@ -48,16 +43,6 @@ struct ConnectionsView: View {
                     })
                 }
             }
-            .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {
-                Button("Cancelar", role: .cancel) {}
-                Button("Borrar Todo", role: .destructive) {
-                    deepLinkManager.deleteKeychainConfig()
-                    motionManager.clearAllData()
-                    pingResultMessage = nil
-                }
-            } message: {
-                Text("Esta acción eliminará de forma irreversible todas las métricas de pasos en memoria local y las credenciales guardadas en Keychain.")
-            }
         }
     }
     
@@ -69,7 +54,7 @@ struct ConnectionsView: View {
             HStack {
                 Image(systemName: "network")
                     .font(.title3)
-                    .foregroundColor(accentColor)
+                    .foregroundColor(themeManager.accentColor)
                 
                 Text("Servidor de Tercero")
                     .font(.headline)
@@ -77,7 +62,7 @@ struct ConnectionsView: View {
                 
                 Spacer()
                 
-                StatusBadge(isConnected: deepLinkManager.activeConfig != nil, accentColor: accentColor)
+                StatusBadge(isConnected: deepLinkManager.activeConfig != nil, accentColor: themeManager.accentColor)
             }
             
             Divider().background(Color.white.opacity(0.1))
@@ -97,7 +82,7 @@ struct ConnectionsView: View {
                             .foregroundColor(.gray)
                         Text(config.endpoint.absoluteString)
                             .font(.caption)
-                            .foregroundColor(accentColor)
+                            .foregroundColor(themeManager.accentColor)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
@@ -126,7 +111,7 @@ struct ConnectionsView: View {
             }
         }
         .padding(20)
-        .background(cardColor)
+        .background(themeManager.cardColor)
         .cornerRadius(24)
         .padding(.horizontal)
     }
@@ -146,7 +131,7 @@ struct ConnectionsView: View {
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(accentColor)
+                .background(themeManager.accentColor)
                 .cornerRadius(16)
             }
             
@@ -188,50 +173,10 @@ struct ConnectionsView: View {
             if let pingMsg = pingResultMessage {
                 Text(pingMsg)
                     .font(.caption)
-                    .foregroundColor(pingMsg.contains("éxito") ? accentColor : .red)
+                    .foregroundColor(pingMsg.contains("éxito") ? themeManager.accentColor : .red)
                     .padding(.top, 4)
             }
         }
-        .padding(.horizontal)
-    }
-    
-    @ViewBuilder
-    private var privacySection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "shield.trianglebadge.exclamationmark.fill")
-                    .foregroundColor(.red)
-                Text("Zona de Privacidad")
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-            
-            Text("Puedes revocar todos los permisos y purgar completamente el historial de pasos, métricas temporales y credenciales de vinculación del dispositivo.")
-                .font(.caption)
-                .foregroundColor(.gray)
-            
-            Button(action: {
-                showDeleteConfirmation = true
-            }) {
-                HStack {
-                    Image(systemName: "trash.fill")
-                    Text("Restablecer y Borrar Todos los Datos")
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(.red)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.red.opacity(0.12))
-                .cornerRadius(14)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                )
-            }
-        }
-        .padding(20)
-        .background(cardColor)
-        .cornerRadius(24)
         .padding(.horizontal)
     }
     
@@ -267,15 +212,16 @@ struct ConsentModalView: View {
     let config: ConnectionConfig
     let onConfirm: () -> Void
     let onReject: () -> Void
+    @EnvironmentObject private var themeManager: ThemeManager
     
     var body: some View {
         ZStack {
-            Color(red: 18/255, green: 18/255, blue: 22/255).ignoresSafeArea()
+            themeManager.cardColor.ignoresSafeArea()
             
             VStack(spacing: 24) {
                 Image(systemName: "checkmark.shield.fill")
                     .font(.system(size: 54))
-                    .foregroundColor(Color(red: 163/255, green: 230/255, blue: 53/255))
+                    .foregroundColor(themeManager.accentColor)
                     .padding(.top, 24)
                 
                 Text("Solicitud de Vinculación")
@@ -317,7 +263,7 @@ struct ConsentModalView: View {
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Color(red: 163/255, green: 230/255, blue: 53/255))
+                            .background(themeManager.accentColor)
                             .cornerRadius(16)
                     }
                     

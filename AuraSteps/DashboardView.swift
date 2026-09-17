@@ -4,19 +4,16 @@ import Charts
 /// Vista principal Dashboard con el anillo circular animado y gráficos de Swift Charts (iOS 16+).
 struct DashboardView: View {
     @EnvironmentObject private var motionManager: StepMotionManager
+    @EnvironmentObject private var userSettings: UserSettingsManager
+    @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var animatedProgress: Double = 0.0
     
-    private let backgroundColor = Color(red: 9/255, green: 9/255, blue: 11/255)
-    private let cardColor = Color(red: 18/255, green: 18/255, blue: 22/255)
-    private let accentColor = Color(red: 163/255, green: 230/255, blue: 53/255)
-    private let secondaryTextColor = Color.gray
-    
     var body: some View {
         NavigationStack {
             ZStack {
-                backgroundColor.ignoresSafeArea()
+                themeManager.backgroundColor.ignoresSafeArea()
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
@@ -55,7 +52,7 @@ struct DashboardView: View {
         }
     }
     
-    // MARK: - Subvistas Modularizadas para Verificación Rápida de Tipos del Compilador
+    // MARK: - Subvistas Modularizadas
     
     @ViewBuilder
     private var demoBannerView: some View {
@@ -68,7 +65,7 @@ struct DashboardView: View {
         .foregroundColor(.black)
         .padding(.vertical, 8)
         .padding(.horizontal, 16)
-        .background(accentColor)
+        .background(themeManager.accentColor)
         .cornerRadius(20)
         .padding(.top, 8)
     }
@@ -77,7 +74,7 @@ struct DashboardView: View {
     private var stepRingCardView: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24)
-                .fill(cardColor)
+                .fill(themeManager.cardColor)
                 .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 5)
             
             VStack(spacing: 20) {
@@ -90,7 +87,7 @@ struct DashboardView: View {
                         .trim(from: 0, to: animatedProgress)
                         .stroke(
                             AngularGradient(
-                                gradient: Gradient(colors: [accentColor.opacity(0.6), accentColor]),
+                                gradient: Gradient(colors: [themeManager.accentColor.opacity(0.6), themeManager.accentColor]),
                                 center: .center,
                                 startAngle: .degrees(-90),
                                 endAngle: .degrees(270)
@@ -99,12 +96,12 @@ struct DashboardView: View {
                         )
                         .rotationEffect(.degrees(-90))
                         .frame(width: 200, height: 200)
-                        .shadow(color: accentColor.opacity(0.4), radius: 8, x: 0, y: 0)
+                        .shadow(color: themeManager.accentColor.opacity(0.4), radius: 8, x: 0, y: 0)
                     
                     VStack(spacing: 4) {
                         Image(systemName: "figure.walk")
                             .font(.title2)
-                            .foregroundColor(accentColor)
+                            .foregroundColor(themeManager.accentColor)
                         
                         Text("\(motionManager.todaySteps)")
                             .font(.system(size: 42, weight: .black, design: .rounded))
@@ -113,7 +110,7 @@ struct DashboardView: View {
                         Text("de \(motionManager.todayGoal) pasos")
                             .font(.caption)
                             .fontWeight(.semibold)
-                            .foregroundColor(secondaryTextColor)
+                            .foregroundColor(.gray)
                     }
                 }
                 .padding(.top, 16)
@@ -122,7 +119,7 @@ struct DashboardView: View {
                     Text("\(Int(progressRatio * 100))% del objetivo diario")
                         .font(.subheadline)
                         .fontWeight(.bold)
-                        .foregroundColor(accentColor)
+                        .foregroundColor(themeManager.accentColor)
                 }
                 .padding(.bottom, 8)
             }
@@ -133,37 +130,40 @@ struct DashboardView: View {
     
     @ViewBuilder
     private var metricsGridView: some View {
+        let currentDist = userSettings.calculateDistanceKm(forSteps: motionManager.todaySteps)
+        let currentCal = userSettings.calculateCaloriesKcal(forSteps: motionManager.todaySteps)
+        
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
             MetricCard(
                 title: "Distancia",
-                value: String(format: "%.2f km", motionManager.todayDistanceKm),
+                value: String(format: "%.2f km", currentDist),
                 icon: "map.fill",
-                cardColor: cardColor,
-                accentColor: accentColor
+                cardColor: themeManager.cardColor,
+                accentColor: themeManager.accentColor
             )
             
             MetricCard(
                 title: "Calorías",
-                value: "\(motionManager.todayCaloriesKcal) kcal",
+                value: "\(currentCal) kcal",
                 icon: "flame.fill",
-                cardColor: cardColor,
-                accentColor: accentColor
+                cardColor: themeManager.cardColor,
+                accentColor: themeManager.accentColor
             )
             
             MetricCard(
                 title: "Pisos Subidos",
                 value: "\(motionManager.todayFloors)",
                 icon: "building.2.fill",
-                cardColor: cardColor,
-                accentColor: accentColor
+                cardColor: themeManager.cardColor,
+                accentColor: themeManager.accentColor
             )
             
             MetricCard(
                 title: "Tiempo Activo",
-                value: "\(motionManager.todayActiveMinutes) min",
+                value: "\(motionManager.todayActiveMinutes)",
                 icon: "clock.fill",
-                cardColor: cardColor,
-                accentColor: accentColor
+                cardColor: themeManager.cardColor,
+                accentColor: themeManager.accentColor
             )
         }
         .padding(.horizontal)
@@ -174,7 +174,7 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "chart.bar.fill")
-                    .foregroundColor(accentColor)
+                    .foregroundColor(themeManager.accentColor)
                 Text("Resumen de los últimos 7 días")
                     .font(.headline)
                     .foregroundColor(.white)
@@ -188,7 +188,7 @@ struct DashboardView: View {
                     )
                     .cornerRadius(6)
                     .foregroundStyle(
-                        day.steps >= motionManager.todayGoal ? accentColor : Color.white.opacity(0.2)
+                        day.steps >= motionManager.todayGoal ? themeManager.accentColor : Color.white.opacity(0.2)
                     )
                     
                     RuleMark(y: .value("Meta", motionManager.todayGoal))
@@ -226,7 +226,7 @@ struct DashboardView: View {
             }
         }
         .padding(20)
-        .background(cardColor)
+        .background(themeManager.cardColor)
         .cornerRadius(24)
         .padding(.horizontal)
     }
@@ -239,7 +239,7 @@ struct DashboardView: View {
             motionManager.toggleDemoMode(!motionManager.isDemoMode)
         }) {
             Image(systemName: motionManager.isDemoMode ? "flask.fill" : "flask")
-                .foregroundColor(motionManager.isDemoMode ? accentColor : .gray)
+                .foregroundColor(motionManager.isDemoMode ? themeManager.accentColor : .gray)
         }
     }
     
