@@ -27,7 +27,6 @@ jobs:
         run: |
           PROJ=$(find . -name "AuraSteps.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ")
-          echo "Compilando en la carpeta: $PROJ_DIR"
           cd "$PROJ_DIR"
           xcodebuild build \
             -project AuraSteps.xcodeproj \
