@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>es</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>AuraSteps</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!-- Esquema de URL de Deep Linking (aurasteps://connect) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.aurasteps.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aurasteps</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Modos de ejecución en segundo plano (Guideline 2.5.4) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.aurasteps.backgroundrefresh</string>
+		<string>com.aurasteps.syncwebhook</string>
+	</array>
+
+	<!-- Permisos de Privacidad Obligatorios de Apple (Guideline 5.1.1) -->
+	<key>NSMotionUsageDescription</key>
+	<string>AuraSteps requiere acceso al coprocesador de movimiento para contar tus pasos, medir la distancia recorrida y calcular las calorías activas en tiempo real.</string>
+
+	<key>NSHealthShareUsageDescription</key>
+	<string>AuraSteps lee los datos de lectura de pasos y actividad de HealthKit para consolidar tu historial diario y semanal de forma 100% local.</string>
+
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>AuraSteps requiere acceso a HealthKit para sincronizar pasivamente tus métricas de actividad.</string>
+
+	<key>NSCameraUsageDescription</key>
+	<string>AuraSteps utiliza la cámara exclusivamente para escaneo voluntario de códigos QR de vinculación a gimnasios o servidores de terceros.</string>
+</dict>
+</plist>
