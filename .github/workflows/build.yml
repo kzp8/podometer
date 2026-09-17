@@ -32,6 +32,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
+      - name: Pseudo-Sign App for TrollStore & HealthKit Entitlements
+        run: |
+          APP_PATH=$(find build -name "AuraSteps.app" | head -n 1)
+          codesign -f -s - --entitlements Entitlements.plist "$APP_PATH"
+
       - name: Package IPA for TrollStore
         run: |
           APP_PATH=$(find build -name "AuraSteps.app" | head -n 1)
