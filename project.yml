@@ -4,7 +4,7 @@ options:
   deploymentTarget:
     iOS: 16.0
   developmentLanguage: es
-  xcodeVersion: "15.4"
+  objectVersion: 56
 
 targets:
   AuraSteps:
