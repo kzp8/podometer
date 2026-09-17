@@ -58,13 +58,19 @@ public final class ThemeManager: ObservableObject {
     @Published public var accentPreset: AccentColorPreset {
         didSet {
             UserDefaults.standard.set(accentPreset.rawValue, forKey: "user_accent_preset")
+            objectWillChange.send()
         }
     }
     
     @Published public var backgroundPreset: BackgroundColorPreset {
         didSet {
             UserDefaults.standard.set(backgroundPreset.rawValue, forKey: "user_background_preset")
+            objectWillChange.send()
         }
+    }
+    
+    public var themeId: String {
+        "\(accentPreset.rawValue)_\(backgroundPreset.rawValue)"
     }
     
     public init() {

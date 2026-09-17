@@ -9,6 +9,8 @@ struct AuraStepsApp: App {
     @StateObject private var userSettings = UserSettingsManager()
     @StateObject private var themeManager = ThemeManager()
     
+    @State private var showOnboarding: Bool = false
+    
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -28,6 +30,7 @@ struct AuraStepsApp: App {
                     }
             }
             .tint(themeManager.accentColor)
+            .id(themeManager.themeId) // Fuerza la actualización visual inmediata e instantánea de toda la app al cambiar de color
             .preferredColorScheme(.dark)
             .environmentObject(motionManager)
             .environmentObject(deepLinkManager)
@@ -36,6 +39,19 @@ struct AuraStepsApp: App {
             .environmentObject(themeManager)
             .onOpenURL { url in
                 deepLinkManager.handleURL(url)
+            }
+            .onAppear {
+                if !userSettings.hasCompletedOnboarding {
+                    showOnboarding = true
+                }
+            }
+            .sheet(isPresented: $showOnboarding) {
+                WelcomeOnboardingView {
+                    showOnboarding = false
+                }
+                .environmentObject(userSettings)
+                .environmentObject(themeManager)
+                .interactiveDismissDisabled(true)
             }
             .task {
                 if HKHealthStore.isHealthDataAvailable() {

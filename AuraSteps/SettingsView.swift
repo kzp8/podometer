@@ -24,6 +24,7 @@ struct SettingsView: View {
                     .padding(.vertical)
                 }
             }
+            .id(themeManager.themeId)
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
             .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {

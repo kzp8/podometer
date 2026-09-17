@@ -4,10 +4,15 @@ import Combine
 /// Gestor de parámetros antropométricos y preferencias personales del usuario (iOS 16+).
 @MainActor
 public final class UserSettingsManager: ObservableObject {
+    @Published public var hasCompletedOnboarding: Bool {
+        didSet {
+            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "has_completed_onboarding")
+        }
+    }
+    
     @Published public var weightKg: Double {
         didSet {
             UserDefaults.standard.set(weightKg, forKey: "user_weight_kg")
-            recalculateCaloriesMultiplier()
         }
     }
     
@@ -36,11 +41,13 @@ public final class UserSettingsManager: ObservableObject {
     }
     
     public init() {
+        let savedOnboarding = UserDefaults.standard.bool(forKey: "has_completed_onboarding")
         let savedWeight = UserDefaults.standard.double(forKey: "user_weight_kg")
         let savedHeight = UserDefaults.standard.double(forKey: "user_height_cm")
         let savedStepLength = UserDefaults.standard.double(forKey: "user_step_length_meters")
         let hasAutoSet = UserDefaults.standard.object(forKey: "user_auto_step_length") != nil
         
+        self.hasCompletedOnboarding = savedOnboarding
         self.weightKg = savedWeight > 0 ? savedWeight : 70.0
         self.heightCm = savedHeight > 0 ? savedHeight : 175.0
         self.isAutoStepLength = hasAutoSet ? UserDefaults.standard.bool(forKey: "user_auto_step_length") : true
@@ -65,16 +72,14 @@ public final class UserSettingsManager: ObservableObject {
     }
     
     /// Estima las calorías quemadas (kcal) basándose en los pasos y el peso real del usuario.
+    /// Fórmula metabólica: Calorías = Pasos * Peso(kg) * 0.00057
     public func calculateCaloriesKcal(forSteps steps: Int) -> Int {
         let caloriesPerStep = weightKg * 0.00057
         return Int(Double(steps) * caloriesPerStep)
     }
     
-    private func recalculateCaloriesMultiplier() {
-        // Notificación implícita de cambio de parámetros
-    }
-    
     public func resetToDefaults() {
+        self.hasCompletedOnboarding = false
         self.weightKg = 70.0
         self.heightCm = 175.0
         self.isAutoStepLength = true

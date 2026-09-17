@@ -20,6 +20,7 @@ targets:
       - AuraSteps/WebhookDispatcher.swift
       - AuraSteps/UserSettingsManager.swift
       - AuraSteps/ThemeManager.swift
+      - AuraSteps/WelcomeOnboardingView.swift
     info:
       path: AuraSteps/Info.plist
       properties:

@@ -24,6 +24,7 @@ struct ConnectionsView: View {
                     .padding(.vertical)
                 }
             }
+            .id(themeManager.themeId)
             .navigationTitle("Conexiones")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $isPresentingQRScanner) {
