@@ -31,12 +31,12 @@ struct DashboardView: View {
                     }
                     .padding(.vertical)
                 }
-            }
-            .navigationTitle("AuraSteps")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    demoButton
+                .navigationTitle("AuraSteps")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        demoButton
+                    }
                 }
             }
             .alert("¿Qué es el Tiempo Activo?", isPresented: $showActiveTimeInfo) {
