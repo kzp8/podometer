@@ -1,11 +1,11 @@
 import SwiftUI
 import AVFoundation
 
-/// Vista para la gestión de vinculación mediante Deep Links, escaneo de QR y purgado de datos.
+/// Vista para la gestión de vinculación mediante Deep Links, escaneo de QR y purgado de datos (iOS 16+).
 struct ConnectionsView: View {
-    @Environment(DeepLinkManager.self) private var deepLinkManager
-    @Environment(StepMotionManager.self) private var motionManager
-    @Environment(WebhookDispatcher.self) private var dispatcher
+    @EnvironmentObject private var deepLinkManager: DeepLinkManager
+    @EnvironmentObject private var motionManager: StepMotionManager
+    @EnvironmentObject private var dispatcher: WebhookDispatcher
     
     @State private var isPresentingQRScanner = false
     @State private var showDeleteConfirmation = false
@@ -202,7 +202,7 @@ struct ConnectionsView: View {
                     }
                 }
             }
-            .sheet(isPresented: Bindable(deepLinkManager).isShowingConsentModal) {
+            .sheet(isPresented: $deepLinkManager.isShowingConsentModal) {
                 if let pending = deepLinkManager.pendingConfig {
                     ConsentModalView(config: pending, onConfirm: {
                         deepLinkManager.confirmPendingConfig()
@@ -214,7 +214,6 @@ struct ConnectionsView: View {
             .alert("¿Restablecer y Borrar Todos los Datos?", isPresented: $showDeleteConfirmation) {
                 Button("Cancelar", role: .cancel) {}
                 Button("Borrar Todo", role: .destructive) {
-                    // Purgado atómico completo
                     deepLinkManager.deleteKeychainConfig()
                     motionManager.clearAllData()
                     pingResultMessage = nil

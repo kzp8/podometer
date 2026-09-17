@@ -16,18 +16,10 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate Xcode Project
-        run: |
-          if [ -f "project.yml" ]; then
-            xcodegen generate
-          elif [ -f "AuraSteps/project.yml" ]; then
-            cd AuraSteps && xcodegen generate
-          fi
+        run: xcodegen generate
 
       - name: Build Unsigned iOS App
         run: |
-          PROJ=$(find . -name "AuraSteps.xcodeproj" | head -n 1)
-          PROJ_DIR=$(dirname "$PROJ")
-          cd "$PROJ_DIR"
           xcodebuild build \
             -project AuraSteps.xcodeproj \
             -scheme AuraSteps \
@@ -42,9 +34,6 @@ jobs:
 
       - name: Package IPA for TrollStore
         run: |
-          PROJ=$(find . -name "AuraSteps.xcodeproj" | head -n 1)
-          PROJ_DIR=$(dirname "$PROJ")
-          cd "$PROJ_DIR"
           APP_PATH=$(find build -name "AuraSteps.app" | head -n 1)
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/
@@ -54,4 +43,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AuraSteps_TrollStore_IPA
-          path: "**/AuraSteps_TrollStore.ipa"
+          path: AuraSteps_TrollStore.ipa

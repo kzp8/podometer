@@ -1,9 +1,9 @@
 import SwiftUI
 import Charts
 
-/// Vista principal Dashboard con el anillo circular animado y gráficos de Swift Charts.
+/// Vista principal Dashboard con el anillo circular animado y gráficos de Swift Charts (iOS 16+).
 struct DashboardView: View {
-    @Environment(StepMotionManager.self) private var motionManager
+    @EnvironmentObject private var motionManager: StepMotionManager
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var animatedProgress: Double = 0.0
@@ -11,7 +11,7 @@ struct DashboardView: View {
     // Paleta de colores deportivos dark mode
     private let backgroundColor = Color(red: 9/255, green: 9/255, blue: 11/255)
     private let cardColor = Color(red: 18/255, green: 18/255, blue: 22/255)
-    private let accentColor = Color(red: 163/255, green: 230/255, blue: 53/255) // #A3E635 Lima Neón
+    private let accentColor = Color(red: 163/255, green: 230/255, blue: 53/255)
     private let secondaryTextColor = Color.gray
     
     var body: some View {
@@ -39,19 +39,16 @@ struct DashboardView: View {
                         
                         // MARK: - Anillo Circular Animado de Pasos
                         ZStack {
-                            // Tarjeta de fondo del anillo
                             RoundedRectangle(cornerRadius: 24)
                                 .fill(cardColor)
                                 .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 5)
                             
                             VStack(spacing: 20) {
                                 ZStack {
-                                    // Pista del anillo
                                     Circle()
                                         .stroke(Color.white.opacity(0.08), lineWidth: 18)
                                         .frame(width: 200, height: 200)
                                     
-                                    // Anillo de progreso animado
                                     Circle()
                                         .trim(from: 0, to: animatedProgress)
                                         .stroke(
@@ -67,7 +64,6 @@ struct DashboardView: View {
                                         .frame(width: 200, height: 200)
                                         .shadow(color: accentColor.opacity(0.4), radius: 8, x: 0, y: 0)
                                     
-                                    // Contenido central del anillo
                                     VStack(spacing: 4) {
                                         Image(systemName: "figure.walk")
                                             .font(.title2)
@@ -214,10 +210,10 @@ struct DashboardView: View {
                 updateProgressAnimation()
                 motionManager.startLiveTracking()
             }
-            .onChange(of: motionManager.todaySteps) { _, _ in
+            .onChange(of: motionManager.todaySteps) { _ in
                 updateProgressAnimation()
             }
-            .onChange(of: scenePhase) { _, newPhase in
+            .onChange(of: scenePhase) { newPhase in
                 if newPhase == .active {
                     motionManager.startLiveTracking()
                 } else if newPhase == .background || newPhase == .inactive {

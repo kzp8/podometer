@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Combine
 
 /// Payload público estandarizado para la exportación directa iPhone -> Servidor Tercero.
 public struct WebhookPayload: Codable, Sendable {
@@ -62,27 +62,24 @@ public enum SyncStatus: Equatable, Sendable {
     case failed(String)
 }
 
-/// Despachador de webhook descentralizado con rate limiting de cliente y manejo de errores HTTP.
-@Observable
+/// Despachador de webhook descentralizado con rate limiting de cliente (iOS 16+).
 @MainActor
-public final class WebhookDispatcher {
-    public var status: SyncStatus = .idle
-    public var lastSyncDate: Date?
-    public var lastHttpStatusCode: Int?
-    public var isSyncing: Bool = false
+public final class WebhookDispatcher: ObservableObject {
+    @Published public var status: SyncStatus = .idle
+    @Published public var lastSyncDate: Date?
+    @Published public var lastHttpStatusCode: Int?
+    @Published public var isSyncing: Bool = false
     
     private let minimumIntervalSeconds: TimeInterval = 900 // 15 minutos mínimo entre ráfagas automáticas
     private var backoffFactor: Double = 1.0
     
     public init() {}
     
-    /// Ejecuta el despacho de métricas respetando el rate limit a menos que sea una prueba manual (ping).
     public func dispatchMetrics(
         config: ConnectionConfig,
         motionManager: StepMotionManager,
         isManualPing: Bool = false
     ) async -> Bool {
-        // Verificar Rate Limiting si es un despacho automático
         if !isManualPing, let lastSync = lastSyncDate {
             let elapsed = Date().timeIntervalSince(lastSync)
             let requiredInterval = minimumIntervalSeconds * backoffFactor
@@ -95,7 +92,6 @@ public final class WebhookDispatcher {
         self.isSyncing = true
         self.status = .syncing
         
-        // Construir Payload
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
         let timestamp = isoFormatter.string(from: Date())
@@ -139,7 +135,6 @@ public final class WebhookDispatcher {
             return false
         }
         
-        // Preparar Solicitud HTTP POST
         var request = URLRequest(url: config.endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
@@ -149,7 +144,7 @@ public final class WebhookDispatcher {
         request.timeoutInterval = 15.0
         
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 self.status = .failed("Respuesta no válida del servidor")
                 self.isSyncing = false
@@ -159,7 +154,6 @@ public final class WebhookDispatcher {
             self.lastHttpStatusCode = httpResponse.statusCode
             
             if (200...299).contains(httpResponse.statusCode) {
-                // Éxito: Restablecer el factor de backoff
                 self.backoffFactor = 1.0
                 let syncTime = Date()
                 self.lastSyncDate = syncTime
@@ -167,7 +161,6 @@ public final class WebhookDispatcher {
                 self.isSyncing = false
                 return true
             } else if httpResponse.statusCode == 429 || (500...599).contains(httpResponse.statusCode) {
-                // Error de Rate Limit o Servidor: Retroceso Exponencial (hasta 4x)
                 self.backoffFactor = min(self.backoffFactor * 2.0, 4.0)
                 let errorMsg = "Servidor devolvió código HTTP \(httpResponse.statusCode). Retroceso incremental aplicado."
                 self.status = .failed(errorMsg)

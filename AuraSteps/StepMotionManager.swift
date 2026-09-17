@@ -1,7 +1,6 @@
 import Foundation
 import CoreMotion
 import HealthKit
-import Observation
 import Combine
 
 /// Estructura que representa la métrica resumida de un día específico.
@@ -30,24 +29,23 @@ public struct DailySummary: Identifiable, Codable, Sendable {
 }
 
 /// Gestor principal del podómetro en tiempo real con CoreMotion y HealthKit.
-/// Diseñado para máxima eficiencia energética y cumplimiento con App Store Review Guideline 2.1 (Demo Mode).
-@Observable
+/// Diseñado para máxima eficiencia energética y compatible con iOS 16.0+.
 @MainActor
-public final class StepMotionManager {
-    // MARK: - Propiedades de Estado Publicadas
-    public var todaySteps: Int = 0
-    public var todayGoal: Int = 10000
-    public var todayDistanceKm: Double = 0.0
-    public var todayCaloriesKcal: Int = 0
-    public var todayFloors: Int = 0
-    public var todayActiveMinutes: Int = 0
-    public var hourlySteps: [String: Int] = [:]
-    public var weeklySummary: [DailySummary] = []
+public final class StepMotionManager: ObservableObject {
+    // MARK: - Propiedades de Estado Publicadas (iOS 16+)
+    @Published public var todaySteps: Int = 0
+    @Published public var todayGoal: Int = 10000
+    @Published public var todayDistanceKm: Double = 0.0
+    @Published public var todayCaloriesKcal: Int = 0
+    @Published public var todayFloors: Int = 0
+    @Published public var todayActiveMinutes: Int = 0
+    @Published public var hourlySteps: [String: Int] = [:]
+    @Published public var weeklySummary: [DailySummary] = []
     
-    public var isLiveTracking: Bool = false
-    public var isHealthKitAuthorized: Bool = false
-    public var isDemoMode: Bool = false
-    public var errorMessage: String? = nil
+    @Published public var isLiveTracking: Bool = false
+    @Published public var isHealthKitAuthorized: Bool = false
+    @Published public var isDemoMode: Bool = false
+    @Published public var errorMessage: String? = nil
     
     // MARK: - Componentes Privados
     private let pedometer = CMPedometer()
@@ -96,7 +94,6 @@ public final class StepMotionManager {
                     if let floors = data.floorsAscended?.intValue {
                         self.todayFloors = floors
                     }
-                    // Cálculo estimado de tiempo activo y calorías basándonos en la cadencia de pasos
                     self.todayActiveMinutes = max(1, self.todaySteps / 100)
                     self.todayCaloriesKcal = Int(Double(self.todaySteps) * 0.04)
                 }
@@ -273,7 +270,6 @@ public final class StepMotionManager {
     
     // MARK: - Guideline 2.1: Modo Demo/Mock para Revisores de Apple
     
-    /// Alterna manualmente el modo demo para pruebas en revisores sin hardware acelerómetro activo.
     public func toggleDemoMode(_ enabled: Bool) {
         self.isDemoMode = enabled
         if enabled {
@@ -289,7 +285,6 @@ public final class StepMotionManager {
         }
     }
     
-    /// Genera un conjunto de datos realistas para demostración y evaluación.
     public func loadDemoData() {
         self.todaySteps = 8420
         self.todayGoal = 10000
@@ -332,7 +327,6 @@ public final class StepMotionManager {
         self.weeklySummary = demoSummaries
     }
     
-    /// Limpia de forma destructiva todos los datos en memoria del gestor.
     public func clearAllData() {
         todaySteps = 0
         todayDistanceKm = 0.0

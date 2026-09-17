@@ -1,6 +1,6 @@
 import Foundation
 import Security
-import Observation
+import Combine
 
 /// Errores posibles durante el análisis y la validación de un Deep Link.
 public enum DeepLinkError: LocalizedError, Sendable {
@@ -44,14 +44,13 @@ public struct ConnectionConfig: Codable, Equatable, Sendable {
     }
 }
 
-/// Gestor principal para el procesamiento de Deep Links y el almacenamiento seguro de credenciales en Keychain.
-@Observable
+/// Gestor principal para el procesamiento de Deep Links y el almacenamiento seguro de credenciales en Keychain (iOS 16+).
 @MainActor
-public final class DeepLinkManager {
-    public var activeConfig: ConnectionConfig?
-    public var pendingConfig: ConnectionConfig?
-    public var isShowingConsentModal: Bool = false
-    public var lastError: DeepLinkError?
+public final class DeepLinkManager: ObservableObject {
+    @Published public var activeConfig: ConnectionConfig?
+    @Published public var pendingConfig: ConnectionConfig?
+    @Published public var isShowingConsentModal: Bool = false
+    @Published public var lastError: DeepLinkError?
     
     private let keychainService = "com.aurasteps.keychain"
     private let keychainAccount = "webhook_credentials"
@@ -86,7 +85,6 @@ public final class DeepLinkManager {
             return false
         }
         
-        // Verificación estricta ATS: Rechazo expreso de HTTP inseguro
         guard endpointURL.scheme?.lowercased() == "https" else {
             self.lastError = .insecureEndpointHTTP
             return false
@@ -106,7 +104,6 @@ public final class DeepLinkManager {
         return true
     }
     
-    /// Aprueba la configuración pendiente presentada en el modal de consentimiento.
     public func confirmPendingConfig() {
         guard let config = pendingConfig else { return }
         if saveConfigToKeychain(config) {
@@ -116,18 +113,16 @@ public final class DeepLinkManager {
         self.isShowingConsentModal = false
     }
     
-    /// Rechaza la vinculación pendiente.
     public func rejectPendingConfig() {
         self.pendingConfig = nil
         self.isShowingConsentModal = false
     }
     
-    // MARK: - Operaciones de Keychain (Cifrado local sin servidor intermediario)
+    // MARK: - Operaciones de Keychain
     
     private func saveConfigToKeychain(_ config: ConnectionConfig) -> Bool {
         guard let data = try? JSONEncoder().encode(config) else { return false }
         
-        // Elimina cualquier credencial existente previa
         deleteKeychainConfig()
         
         let query: [String: Any] = [
@@ -135,7 +130,6 @@ public final class DeepLinkManager {
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: keychainAccount,
             kSecValueData as String: data,
-            // Guideline / Seguridad: Accesible solo tras el primer desbloqueo de este dispositivo
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
         
@@ -166,7 +160,6 @@ public final class DeepLinkManager {
         return try? JSONDecoder().decode(ConnectionConfig.self, from: data)
     }
     
-    /// Purga atómicamente las credenciales del Keychain (Guideline 5.1.1(v) - Derecho de Supresión).
     public func deleteKeychainConfig() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

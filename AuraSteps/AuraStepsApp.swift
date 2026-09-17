@@ -2,9 +2,9 @@ import SwiftUI
 
 @main
 struct AuraStepsApp: App {
-    @State private var motionManager = StepMotionManager()
-    @State private var deepLinkManager = DeepLinkManager()
-    @State private var dispatcher = WebhookDispatcher()
+    @StateObject private var motionManager = StepMotionManager()
+    @StateObject private var deepLinkManager = DeepLinkManager()
+    @StateObject private var dispatcher = WebhookDispatcher()
     
     var body: some Scene {
         WindowGroup {
@@ -21,9 +21,9 @@ struct AuraStepsApp: App {
             }
             .tint(Color(red: 163/255, green: 230/255, blue: 53/255))
             .preferredColorScheme(.dark)
-            .environment(motionManager)
-            .environment(deepLinkManager)
-            .environment(dispatcher)
+            .environmentObject(motionManager)
+            .environmentObject(deepLinkManager)
+            .environmentObject(dispatcher)
             .onOpenURL { url in
                 deepLinkManager.handleURL(url)
             }
