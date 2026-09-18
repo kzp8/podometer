@@ -125,24 +125,13 @@ struct GymGalleryView: View {
                                         if let fileName = item.file,
                                            let url = pbManager.getFileURL(recordId: item.id, fileName: fileName) {
                                             if item.isVideo {
-                                                VideoPlayer(player: AVPlayer(url: url))
+                                                GymVideoPlayer(url: url, authToken: pbManager.authToken)
                                                     .frame(height: 200)
                                                     .cornerRadius(14)
                                             } else {
-                                                AsyncImage(url: url) { phase in
-                                                    if let img = phase.image {
-                                                        img
-                                                            .resizable()
-                                                            .scaledToFit()
-                                                            .frame(maxHeight: 220)
-                                                            .cornerRadius(14)
-                                                    } else {
-                                                        Rectangle()
-                                                            .fill(Color.white.opacity(0.05))
-                                                            .frame(height: 180)
-                                                            .cornerRadius(14)
-                                                    }
-                                                }
+                                                GymImageView(url: url, authToken: pbManager.authToken)
+                                                    .frame(maxHeight: 220)
+                                                    .cornerRadius(14)
                                             }
                                         }
                                         
@@ -201,5 +190,96 @@ struct GymGalleryView: View {
                     .environmentObject(themeManager)
             }
         }
+    }
+}
+
+// MARK: - Componentes Autenticados de Imagen y Vídeo
+
+@MainActor
+struct GymImageView: View {
+    let url: URL
+    let authToken: String?
+    
+    @State private var uiImage: UIImage? = nil
+    @State private var isLoading: Bool = true
+    
+    var body: some View {
+        Group {
+            if let uiImage = uiImage {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+            } else if isLoading {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.05))
+                        .frame(height: 180)
+                    ProgressView()
+                        .tint(.purple)
+                }
+            } else {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.05))
+                        .frame(height: 180)
+                    Image(systemName: "photo")
+                        .font(.system(size: 30))
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .task(id: url) {
+            await loadImage()
+        }
+    }
+    
+    private func loadImage() async {
+        isLoading = true
+        var request = URLRequest(url: url)
+        if let token = authToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+               let image = UIImage(data: data) {
+                self.uiImage = image
+            }
+        } catch {
+            print("Error cargando imagen: \(error.localizedDescription)")
+        }
+        isLoading = false
+    }
+}
+
+@MainActor
+struct GymVideoPlayer: View {
+    let url: URL
+    let authToken: String?
+    
+    @State private var player: AVPlayer? = nil
+    
+    var body: some View {
+        Group {
+            if let player = player {
+                VideoPlayer(player: player)
+            } else {
+                ProgressView()
+                    .frame(height: 200)
+            }
+        }
+        .onAppear {
+            setupPlayer()
+        }
+    }
+    
+    private func setupPlayer() {
+        var options: [String: Any] = [:]
+        if let token = authToken, !token.isEmpty {
+            options["AVURLAssetHTTPHeaderFieldsKey"] = ["Authorization": "Bearer \(token)"]
+        }
+        let asset = AVURLAsset(url: url, options: options)
+        let item = AVPlayerItem(asset: asset)
+        self.player = AVPlayer(playerItem: item)
     }
 }

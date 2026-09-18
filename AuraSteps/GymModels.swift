@@ -6,9 +6,13 @@ public struct GymUser: Identifiable, Codable, Sendable {
     public let email: String
     public var name: String?
     public var full_name: String?
-    public let role: String // "admin" o "client"
+    public var role: String? // "admin" o "client"
     public var avatar: String?
     public var created: String?
+    
+    public var userRole: String {
+        return role ?? "client"
+    }
     
     public var displayName: String {
         if let full = full_name, !full.isEmpty { return full }
@@ -40,9 +44,9 @@ public struct GymUser: Identifiable, Codable, Sendable {
         return String(dateStr.prefix(10))
     }
     
-    public var isAdmin: Bool { role == "admin" }
+    public var isAdmin: Bool { userRole == "admin" }
     
-    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String = "client", avatar: String? = nil, created: String? = nil) {
+    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, created: String? = nil) {
         self.id = id
         self.email = email
         self.name = name
@@ -71,11 +75,15 @@ public struct GymRoutine: Identifiable, Codable, Sendable {
 /// Modelo que representa un día dentro de una rutina de entrenamiento.
 public struct GymRoutineDay: Identifiable, Codable, Sendable {
     public let id: String
-    public let routine: String
-    public let day_name: String
+    public let routine: String?
+    public let day_name: String?
     public let content: String?
     
-    public init(id: String, routine: String, day_name: String, content: String? = nil) {
+    public var title: String {
+        day_name ?? "Día de entrenamiento"
+    }
+    
+    public init(id: String, routine: String? = nil, day_name: String? = nil, content: String? = nil) {
         self.id = id
         self.routine = routine
         self.day_name = day_name
@@ -86,11 +94,11 @@ public struct GymRoutineDay: Identifiable, Codable, Sendable {
 /// Modelo que representa un registro de día completado.
 public struct GymWorkoutCompletion: Identifiable, Codable, Sendable {
     public let id: String
-    public let client: String
+    public let client: String?
     public let routine_day: String
     public let completed_date: String?
     
-    public init(id: String, client: String, routine_day: String, completed_date: String? = nil) {
+    public init(id: String, client: String? = nil, routine_day: String, completed_date: String? = nil) {
         self.id = id
         self.client = client
         self.routine_day = routine_day
@@ -101,7 +109,7 @@ public struct GymWorkoutCompletion: Identifiable, Codable, Sendable {
 /// Modelo que representa la subida de un vídeo o foto de progreso entregado al entrenador.
 public struct GymProgressUpload: Identifiable, Codable, Sendable {
     public let id: String
-    public let client: String
+    public let client: String?
     public let file: String?
     public let file_type: String? // "image" o "video"
     public let notes: String?
@@ -116,7 +124,7 @@ public struct GymProgressUpload: Identifiable, Codable, Sendable {
         return false
     }
     
-    public init(id: String, client: String, file: String? = nil, file_type: String? = nil, notes: String? = nil, seen_by_admin: Bool? = false, admin_response: String? = nil, response_seen: Bool? = false, created: String? = nil) {
+    public init(id: String, client: String? = nil, file: String? = nil, file_type: String? = nil, notes: String? = nil, seen_by_admin: Bool? = false, admin_response: String? = nil, response_seen: Bool? = false, created: String? = nil) {
         self.id = id
         self.client = client
         self.file = file
