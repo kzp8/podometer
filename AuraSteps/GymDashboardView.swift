@@ -41,9 +41,6 @@ struct GymDashboardView: View {
                         .padding(.top, 16)
                         .padding(.bottom, 75)
                     }
-                    .refreshable {
-                        await pbManager.refreshAllGymData()
-                    }
                     .onChange(of: tabScrollManager.scrollEvent) { event in
                         guard let event = event, event.tab == 1 else { return }
                         if event.animated {

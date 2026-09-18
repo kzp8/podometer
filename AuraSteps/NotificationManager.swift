@@ -18,20 +18,12 @@ public final class NotificationManager: ObservableObject {
             scheduleNotificationsIfNeeded()
         }
     }
-    @Published public var isInactivityReminderEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(isInactivityReminderEnabled, forKey: "is_inactivity_reminder_enabled")
-            scheduleNotificationsIfNeeded()
-        }
-    }
     
     public init() {
         let savedDaily = UserDefaults.standard.bool(forKey: "is_daily_reminder_enabled")
-        let savedInactivity = UserDefaults.standard.bool(forKey: "is_inactivity_reminder_enabled")
         let savedTimeInterval = UserDefaults.standard.double(forKey: "daily_reminder_time")
         
         self.isDailyReminderEnabled = savedDaily
-        self.isInactivityReminderEnabled = savedInactivity
         
         if savedTimeInterval > 0 {
             self.dailyReminderTime = Date(timeIntervalSince1970: savedTimeInterval)
@@ -72,6 +64,16 @@ public final class NotificationManager: ObservableObject {
     private var lastKnownSteps: Int = 0
     private var lastKnownGoal: Int = 10000
     
+    private let motivationalMessages: [(title: String, body: String)] = [
+        ("👟 ¡Momento de caminar!", "Cada paso cuenta para tu bienestar y energía. ¿Cuánto te falta hoy para tu objetivo?"),
+        ("🔥 ¡Mantén tu racha activa!", "Consulta tus pasos de hoy en AuraSteps y no dejes que se apague tu racha."),
+        ("🚶‍♂️ Desconecta y camina", "Un paseo de unos minutos te ayuda a despejar la mente y sumar actividad a tu día."),
+        ("💪 ¡A por tu meta diaria!", "Revisa tu progreso en AuraSteps. ¡Un último paseo antes de que termine el día!"),
+        ("🌟 Activa tu cuerpo", "Una breve caminata al aire libre o por casa te llenará de vitalidad. ¡A por ello!"),
+        ("⚡ ¡Ponte en marcha!", "Levántate, estira las piernas y suma unos cuantos pasos más a tu total de hoy."),
+        ("🎯 ¿Cómo va tu objetivo?", "Abre AuraSteps y comprueba lo cerca que estás de cumplir tu meta de pasos de hoy.")
+    ]
+    
     public func scheduleNotificationsIfNeeded(currentSteps: Int? = nil, goalSteps: Int? = nil) {
         if let steps = currentSteps { self.lastKnownSteps = steps }
         if let goal = goalSteps { self.lastKnownGoal = goal }
@@ -80,46 +82,34 @@ public final class NotificationManager: ObservableObject {
         
         guard isAuthorized else { return }
         
-        let stepsText = "\(lastKnownSteps) de \(lastKnownGoal)"
-        
         if isDailyReminderEnabled {
             let calendar = Calendar.current
-            let components = calendar.dateComponents([.hour, .minute], from: dailyReminderTime)
+            let timeComponents = calendar.dateComponents([.hour, .minute], from: dailyReminderTime)
+            guard let hour = timeComponents.hour, let minute = timeComponents.minute else { return }
             
-            let content = UNMutableNotificationContent()
-            content.title = "👟 Resumen de Pasos AuraSteps"
-            if lastKnownSteps >= lastKnownGoal {
-                content.body = "¡Enhorabuena! Has alcanzado tu objetivo con \(stepsText) pasos hoy 🎉"
-            } else {
-                content.body = "Llevas \(stepsText) pasos hoy. ¡Sigue así para alcanzar tu meta!"
-            }
-            content.sound = .default
-            
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-            let request = UNNotificationRequest(identifier: "aurasteps_daily_reminder", content: content, trigger: trigger)
-            
-            UNUserNotificationCenter.current().add(request)
-        }
-        
-        if isInactivityReminderEnabled {
-            let content = UNMutableNotificationContent()
-            content.title = "🚶‍♂️ ¡Hora de Moverse!"
-            content.body = "Llevas \(stepsText) pasos hoy. ¡Da un paseo de 5 minutos para seguir sumando!"
-            content.sound = .default
-            
-            // Recordatorios de inactividad programados exclusivamente en horario diurno (de 10:00 a 22:00 cada 2 horas)
-            let activeHours = [10, 12, 14, 16, 18, 20, 22]
-            for hour in activeHours {
+            // Programar una notificación para cada día de la semana (1 = domingo, ..., 7 = sábado)
+            // de modo que cada día muestre un mensaje motivacional rotativo distinto a la hora configurada.
+            for weekday in 1...7 {
                 var components = DateComponents()
                 components.hour = hour
-                components.minute = 0
+                components.minute = minute
+                components.weekday = weekday
+                
+                let messageIndex = (weekday - 1) % motivationalMessages.count
+                let message = motivationalMessages[messageIndex]
+                
+                let content = UNMutableNotificationContent()
+                content.title = message.title
+                content.body = message.body
+                content.sound = .default
                 
                 let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
                 let request = UNNotificationRequest(
-                    identifier: "aurasteps_inactivity_reminder_\(hour)",
+                    identifier: "aurasteps_daily_reminder_weekday_\(weekday)",
                     content: content,
                     trigger: trigger
                 )
+                
                 UNUserNotificationCenter.current().add(request)
             }
         }

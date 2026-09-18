@@ -25,12 +25,6 @@ struct GymRoutineView: View {
                         emptyStateView
                             .padding(.top, 60)
                     }
-                    .refreshable {
-                        if let user = pbManager.currentUser {
-                            await pbManager.fetchActiveRoutine(forUserId: user.id)
-                            await pbManager.fetchClientNotes(forUserId: user.id)
-                        }
-                    }
                 } else {
                     ScrollViewReader { proxy in
                         ScrollView {
@@ -56,12 +50,6 @@ struct GymRoutineView: View {
                             .padding(.horizontal)
                             .padding(.top, 16)
                             .padding(.bottom, 75)
-                        }
-                        .refreshable {
-                            if let user = pbManager.currentUser {
-                                await pbManager.fetchActiveRoutine(forUserId: user.id)
-                                await pbManager.fetchClientNotes(forUserId: user.id)
-                            }
                         }
                         .onChange(of: tabScrollManager.scrollEvent) { event in
                             guard let event = event, event.tab == 2 else { return }

@@ -54,11 +54,6 @@ struct GymGalleryView: View {
                         .padding(.top, 16)
                         .padding(.bottom, isSelectionMode ? 145 : 75)
                     }
-                    .refreshable {
-                        if let user = pbManager.currentUser {
-                            await pbManager.fetchProgressUploads(forUserId: user.id)
-                        }
-                    }
                     .onChange(of: tabScrollManager.scrollEvent) { event in
                         guard let event = event, event.tab == 3 else { return }
                         if event.animated {

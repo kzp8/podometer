@@ -2395,7 +2395,10 @@ struct TrainerClientGalleryView: View {
                             .padding(.top, 20)
                     } else {
                         ForEach(clientUploads) { upload in
-                            trainerUploadCard(upload: upload)
+                            NavigationLink(value: upload) {
+                                trainerUploadCard(upload: upload)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -2476,6 +2479,7 @@ struct TrainerClientGalleryView: View {
                             .stroke(themeManager.accentColor.opacity(0.4), lineWidth: 1)
                     )
                 }
+                .buttonStyle(.borderless)
             } else {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
@@ -2528,7 +2532,11 @@ struct TrainerUploadDetailView: View {
                         
                         Spacer()
                         
-                        Button(action: toggleReviewed) {
+                        Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            toggleReviewed()
+                        }) {
                             HStack(spacing: 6) {
                                 if isMarkingSeen {
                                     ProgressView().tint(isSeen ? .gray : .black)
@@ -2544,18 +2552,12 @@ struct TrainerUploadDetailView: View {
                             .background(isSeen ? Color.white.opacity(0.12) : themeManager.accentColor)
                             .cornerRadius(12)
                         }
+                        .buttonStyle(.borderless)
                         .disabled(isMarkingSeen)
                     }
                     .padding()
                     .background(Color.white.opacity(0.04))
                     .cornerRadius(14)
-                    // Absorbe todos los taps para evitar que pasen al botón de vídeo debajo
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if !isMarkingSeen {
-                            toggleReviewed()
-                        }
-                    }
 
                     // Visor de foto o vídeo (al pulsar se abre el visor modal en pantalla completa)
                     if let fileName = upload.file,
@@ -2570,6 +2572,7 @@ struct TrainerUploadDetailView: View {
                                     GymVideoThumbnailView(url: url, authToken: pbManager.authToken, showPlayButton: true)
                                         .frame(height: 320)
                                         .cornerRadius(16)
+                                        .clipped()
                                 } else {
                                     GymImageView(url: url, authToken: pbManager.authToken)
                                         .frame(maxHeight: 320)
@@ -2590,7 +2593,8 @@ struct TrainerUploadDetailView: View {
                                 .padding(10)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderless)
+                        .contentShape(RoundedRectangle(cornerRadius: 16))
                     }
                     
                     // Datos del cliente
@@ -2686,6 +2690,28 @@ struct TrainerUploadDetailView: View {
         }
         .navigationTitle("Revisión de Entrega")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    toggleReviewed()
+                }) {
+                    HStack(spacing: 5) {
+                        if isMarkingSeen {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: isSeen ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 14, weight: .bold))
+                            Text(isSeen ? "Revisado" : "Marcar visto")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                    }
+                    .foregroundColor(isSeen ? Color(hex: "34D399") : themeManager.accentColor)
+                }
+                .disabled(isMarkingSeen)
+            }
+        }
         .fullScreenCover(isPresented: $isPresentingMediaViewer) {
             GymMediaViewerModal(item: upload)
         }

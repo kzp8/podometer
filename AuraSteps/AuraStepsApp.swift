@@ -65,18 +65,7 @@ struct AuraStepsApp: App {
                     if HKHealthStore.isHealthDataAvailable() {
                         await motionManager.requestHealthKitAuthorization()
                     }
-                    if await notificationManager.requestAuthorization() {
-                        await MainActor.run {
-                            UIApplication.shared.registerForRemoteNotifications()
-                        }
-                    }
-                    // Comprobación periódica cada 5 minutos mientras la app esté abierta o en background
-                    while !Task.isCancelled {
-                        try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutos
-                        if pocketBaseManager.isLoggedIn {
-                            await pocketBaseManager.checkTrainerUpdatesAndNotify()
-                        }
-                    }
+                    _ = await notificationManager.requestAuthorization()
                 }
         }
     }
@@ -100,7 +89,7 @@ struct AuraStepsApp: App {
                 UIApplication.shared.registerForRemoteNotifications()
                 Task {
                     await pocketBaseManager.syncAPNsDeviceToken()
-                    await pocketBaseManager.checkTrainerUpdatesAndNotify()
+                    await pocketBaseManager.refreshAllGymData()
                 }
                 tabScrollManager.selectTab(1)
             } else {
@@ -110,7 +99,7 @@ struct AuraStepsApp: App {
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active && pocketBaseManager.isLoggedIn {
                 Task {
-                    await pocketBaseManager.checkTrainerUpdatesAndNotify()
+                    await pocketBaseManager.refreshAllGymData()
                 }
             }
         }

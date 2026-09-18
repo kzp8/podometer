@@ -304,19 +304,6 @@ struct SettingsView: View {
                     .foregroundColor(.gray)
                     .tint(themeManager.accentColor)
                 }
-                
-                Toggle(isOn: $notificationManager.isInactivityReminderEnabled) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Alerta de Inactividad")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                        Text("Te avisa para hacer una pausa activa si pasas 2h sin moverte")
-                            .font(.caption2)
-                            .foregroundColor(.gray)
-                    }
-                }
-                .tint(themeManager.accentColor)
-                .disabled(!notificationManager.isAuthorized)
             }
         }
         .padding(20)
