@@ -5,6 +5,7 @@ import SwiftUI
 struct GymRoutineView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     
     @State private var selectedDayIndex: Int = 0
     @State private var showLogModal: Bool = false
@@ -22,25 +23,41 @@ struct GymRoutineView: View {
                 if pbManager.routineDays.isEmpty {
                     emptyStateView
                 } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            if let routine = pbManager.activeRoutine {
-                                routineHeaderView(routine: routine)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            Color.clear
+                                .frame(height: 0)
+                                .id("SCROLL_TOP")
+                            
+                            VStack(spacing: 16) {
+                                if let routine = pbManager.activeRoutine {
+                                    routineHeaderView(routine: routine)
+                                }
+                                
+                                if !pbManager.clientNotes.isEmpty {
+                                    routineTrainerNotesCard
+                                }
+                                
+                                daySelectorView
+                                
+                                if selectedDayIndex < pbManager.routineDays.count {
+                                    dayDetailView(currentDay: pbManager.routineDays[selectedDayIndex])
+                                }
                             }
-                            
-                            if !pbManager.clientNotes.isEmpty {
-                                routineTrainerNotesCard
-                            }
-                            
-                            daySelectorView
-                            
-                            if selectedDayIndex < pbManager.routineDays.count {
-                                dayDetailView(currentDay: pbManager.routineDays[selectedDayIndex])
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                            .padding(.bottom, 75)
+                        }
+                        .onChange(of: tabScrollManager.scrollEvent) { event in
+                            guard let event = event, event.tab == 2 else { return }
+                            if event.animated {
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                                }
+                            } else {
+                                proxy.scrollTo("SCROLL_TOP", anchor: .top)
                             }
                         }
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                        .padding(.bottom, 110)
                     }
                 }
             }

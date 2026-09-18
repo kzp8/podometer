@@ -6,6 +6,7 @@ import AVKit
 struct GymGalleryView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     
     @State private var selectedFilter: String = "Todos" // "Todos", "Fotos", "Vídeos"
     @State private var showUploadSheet: Bool = false
@@ -29,24 +30,40 @@ struct GymGalleryView: View {
             ZStack {
                 AppBackgroundView()
                 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Header info
-                        headerView
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("SCROLL_TOP")
                         
-                        // Selector Píldoras de Filtro (Todos, Fotos, Vídeos)
-                        filterPillsView
-                        
-                        // Estado Vacío o Grid de Entregas
-                        if filteredUploads.isEmpty {
-                            emptyStateView
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Header info
+                            headerView
+                            
+                            // Selector Píldoras de Filtro (Todos, Fotos, Vídeos)
+                            filterPillsView
+                            
+                            // Estado Vacío o Grid de Entregas
+                            if filteredUploads.isEmpty {
+                                emptyStateView
+                            } else {
+                                uploadsListView
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        .padding(.bottom, isSelectionMode ? 145 : 75)
+                    }
+                    .onChange(of: tabScrollManager.scrollEvent) { event in
+                        guard let event = event, event.tab == 3 else { return }
+                        if event.animated {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                            }
                         } else {
-                            uploadsListView
+                            proxy.scrollTo("SCROLL_TOP", anchor: .top)
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, isSelectionMode ? 140 : 110)
                 }
                 
                 // Barra flotante de selección y eliminación por lotes
@@ -377,15 +394,18 @@ struct GymGalleryView: View {
                 .disabled(selectedUploadIds.isEmpty || isDeleting)
             }
             .padding(16)
-            .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+            .background(
+                Color(red: 0.12, green: 0.12, blue: 0.14).opacity(0.95)
+                    .background(.ultraThinMaterial)
+            )
             .cornerRadius(18)
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
                     .stroke(Color.white.opacity(0.12), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+            .shadow(color: .black.opacity(0.55), radius: 14, y: 6)
             .padding(.horizontal)
-            .padding(.bottom, 12)
+            .padding(.bottom, 78)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }

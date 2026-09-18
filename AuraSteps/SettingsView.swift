@@ -11,6 +11,9 @@ struct SettingsView: View {
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var achievementsManager: AchievementsManager
     @EnvironmentObject private var pbManager: PocketBaseManager
+    @EnvironmentObject private var tabScrollManager: TabScrollManager
+    
+    var tabIndex: Int = 4
     
     @State private var isPresentingQRScanner = false
     @State private var pingResultMessage: String? = nil
@@ -26,17 +29,33 @@ struct SettingsView: View {
             ZStack {
                 AppBackgroundView()
                 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        biometricSection
-                        goalsAndRemindersSection
-                        achievementsGridSection
-                        gymConnectionSection
-                        themeSection
-                        privacySection
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("SCROLL_TOP")
+                        
+                        VStack(spacing: 24) {
+                            biometricSection
+                            goalsAndRemindersSection
+                            achievementsGridSection
+                            gymConnectionSection
+                            themeSection
+                            privacySection
+                        }
+                        .padding(.top, 16)
+                        .padding(.bottom, 75)
                     }
-                    .padding(.top, 16)
-                    .padding(.bottom, 110)
+                    .onChange(of: tabScrollManager.scrollEvent) { event in
+                        guard let event = event, event.tab == tabIndex else { return }
+                        if event.animated {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                            }
+                        } else {
+                            proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                        }
+                    }
                 }
             }
             .navigationTitle("Ajustes")

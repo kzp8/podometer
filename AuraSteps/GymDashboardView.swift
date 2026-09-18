@@ -5,6 +5,7 @@ import SwiftUI
 struct GymDashboardView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     
     var onNavigateToRoutine: () -> Void = {}
     
@@ -13,25 +14,41 @@ struct GymDashboardView: View {
             ZStack {
                 AppBackgroundView()
                 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        if let error = pbManager.errorMessage {
-                            Text("Error: \(error)")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(10)
-                        }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("SCROLL_TOP")
                         
-                        userWelcomeCard
-                        trainerNotesSection
-                        activeRoutineSection
-                        recentUploadsSection
+                        VStack(spacing: 20) {
+                            if let error = pbManager.errorMessage {
+                                Text("Error: \(error)")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .padding()
+                                    .background(Color.red.opacity(0.1))
+                                    .cornerRadius(10)
+                            }
+                            
+                            userWelcomeCard
+                            trainerNotesSection
+                            activeRoutineSection
+                            recentUploadsSection
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        .padding(.bottom, 75)
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, 110)
+                    .onChange(of: tabScrollManager.scrollEvent) { event in
+                        guard let event = event, event.tab == 1 else { return }
+                        if event.animated {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                            }
+                        } else {
+                            proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                        }
+                    }
                 }
             }
             .navigationTitle("Mi Panel")

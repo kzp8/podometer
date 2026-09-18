@@ -11,8 +11,8 @@ struct AuraStepsApp: App {
     @StateObject private var notificationManager = NotificationManager()
     @StateObject private var achievementsManager = AchievementsManager()
     @StateObject private var pocketBaseManager = PocketBaseManager()
+    @StateObject private var tabScrollManager = TabScrollManager()
     
-    @State private var selectedTab: Int = 0
     @State private var showOnboarding: Bool = false
     
     var body: some Scene {
@@ -23,60 +23,44 @@ struct AuraStepsApp: App {
                 ZStack {
                     if pocketBaseManager.isLoggedIn {
                         DashboardView()
-                            .opacity(selectedTab == 0 ? 1 : 0)
-                            .scaleEffect(selectedTab == 0 ? 1 : 0.98)
-                            .offset(y: selectedTab == 0 ? 0 : 6)
-                            .allowsHitTesting(selectedTab == 0)
+                            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 0)
                         
                         GymDashboardView(onNavigateToRoutine: {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                                selectedTab = 2 // Mi Rutina
-                            }
+                            tabScrollManager.selectTab(2) // Mi Rutina
                         })
-                        .opacity(selectedTab == 1 ? 1 : 0)
-                        .scaleEffect(selectedTab == 1 ? 1 : 0.98)
-                        .offset(y: selectedTab == 1 ? 0 : 6)
-                        .allowsHitTesting(selectedTab == 1)
+                        .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+                        .allowsHitTesting(tabScrollManager.selectedTab == 1)
                         
                         GymRoutineView()
-                            .opacity(selectedTab == 2 ? 1 : 0)
-                            .scaleEffect(selectedTab == 2 ? 1 : 0.98)
-                            .offset(y: selectedTab == 2 ? 0 : 6)
-                            .allowsHitTesting(selectedTab == 2)
+                            .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 2)
                         
                         GymGalleryView()
-                            .opacity(selectedTab == 3 ? 1 : 0)
-                            .scaleEffect(selectedTab == 3 ? 1 : 0.98)
-                            .offset(y: selectedTab == 3 ? 0 : 6)
-                            .allowsHitTesting(selectedTab == 3)
+                            .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 3)
                         
-                        SettingsView()
-                            .opacity(selectedTab == 4 ? 1 : 0)
-                            .scaleEffect(selectedTab == 4 ? 1 : 0.98)
-                            .offset(y: selectedTab == 4 ? 0 : 6)
-                            .allowsHitTesting(selectedTab == 4)
+                        SettingsView(tabIndex: 4)
+                            .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 4)
                     } else {
                         DashboardView()
-                            .opacity(selectedTab == 0 ? 1 : 0)
-                            .scaleEffect(selectedTab == 0 ? 1 : 0.98)
-                            .offset(y: selectedTab == 0 ? 0 : 6)
-                            .allowsHitTesting(selectedTab == 0)
+                            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 0)
                         
-                        SettingsView()
-                            .opacity(selectedTab == 1 ? 1 : 0)
-                            .scaleEffect(selectedTab == 1 ? 1 : 0.98)
-                            .offset(y: selectedTab == 1 ? 0 : 6)
-                            .allowsHitTesting(selectedTab == 1)
+                        SettingsView(tabIndex: 1)
+                            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 1)
                     }
                 }
-                .animation(.spring(response: 0.32, dampingFraction: 0.82), value: selectedTab)
+                .animation(.easeInOut(duration: 0.22), value: tabScrollManager.selectedTab)
                 .safeAreaInset(edge: .bottom) {
-                    CustomAnimatedTabBar(selectedTab: $selectedTab, isLoggedIn: pocketBaseManager.isLoggedIn)
+                    CustomAnimatedTabBar(isLoggedIn: pocketBaseManager.isLoggedIn)
                 }
             }
             .onChange(of: pocketBaseManager.isLoggedIn) { loggedIn in
-                if !loggedIn && selectedTab > 1 {
-                    selectedTab = 0
+                if !loggedIn && tabScrollManager.selectedTab > 1 {
+                    tabScrollManager.selectTab(0)
                 }
             }
             .tint(themeManager.accentColor)
@@ -89,6 +73,7 @@ struct AuraStepsApp: App {
             .environmentObject(notificationManager)
             .environmentObject(achievementsManager)
             .environmentObject(pocketBaseManager)
+            .environmentObject(tabScrollManager)
             .onOpenURL { url in
                 deepLinkManager.handleURL(url)
             }
@@ -116,11 +101,11 @@ struct AuraStepsApp: App {
     }
 }
 
-// MARK: - Barra de Pestañas Animada con Material Traslúcido
+// MARK: - Barra de Pestañas Animada con Hitbox Ampliada y Material Traslúcido
 
 @MainActor
 struct CustomAnimatedTabBar: View {
-    @Binding var selectedTab: Int
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     let isLoggedIn: Bool
     @EnvironmentObject var themeManager: ThemeManager
     @Namespace private var tabAnimationNamespace
@@ -152,27 +137,24 @@ struct CustomAnimatedTabBar: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(tabs) { tab in
-                let isSelected = selectedTab == tab.tag
+                let isSelected = tabScrollManager.selectedTab == tab.tag
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .light)
                     generator.impactOccurred()
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                        selectedTab = tab.tag
-                    }
+                    tabScrollManager.selectTab(tab.tag)
                 }) {
-                    VStack(spacing: 3) {
+                    VStack(spacing: 4) {
                         ZStack {
                             if isSelected {
                                 Capsule()
                                     .fill(themeManager.accentColor.opacity(0.18))
-                                    .frame(width: 44, height: 28)
+                                    .frame(width: 48, height: 28)
                                     .matchedGeometryEffect(id: "activeTabPill", in: tabAnimationNamespace)
                             }
                             
                             Image(systemName: tab.icon)
                                 .font(.system(size: 18, weight: isSelected ? .bold : .medium))
                                 .foregroundColor(isSelected ? themeManager.accentColor : .gray)
-                                .scaleEffect(isSelected ? 1.08 : 1.0)
                         }
                         
                         Text(tab.label)
@@ -180,13 +162,14 @@ struct CustomAnimatedTabBar: View {
                             .foregroundColor(isSelected ? themeManager.accentColor : .gray)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle()) // Área completa interactiva para pulsación cómoda
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
+        .padding(.horizontal, 6)
+        .padding(.top, 4)
         .background(
             themeManager.backgroundColor.opacity(0.85)
                 .background(.ultraThinMaterial)

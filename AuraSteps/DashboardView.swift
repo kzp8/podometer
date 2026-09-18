@@ -8,6 +8,7 @@ struct DashboardView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var achievementsManager: AchievementsManager
+    @EnvironmentObject private var tabScrollManager: TabScrollManager
     @Environment(\.scenePhase) private var scenePhase
     
     @State private var animatedProgress: Double = 0.0
@@ -21,19 +22,35 @@ struct DashboardView: View {
             ZStack {
                 AppBackgroundView()
                 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 24) {
-                        if motionManager.isDemoMode {
-                            demoBannerView
-                        }
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id("SCROLL_TOP")
                         
-                        stepRingCardView
-                        streakBannerView
-                        metricsGridView
-                        historyInteractiveSectionView
+                        VStack(spacing: 24) {
+                            if motionManager.isDemoMode {
+                                demoBannerView
+                            }
+                            
+                            stepRingCardView
+                            streakBannerView
+                            metricsGridView
+                            historyInteractiveSectionView
+                        }
+                        .padding(.top, 16)
+                        .padding(.bottom, 75)
                     }
-                    .padding(.top, 16)
-                    .padding(.bottom, 110)
+                    .onChange(of: tabScrollManager.scrollEvent) { event in
+                        guard let event = event, event.tab == 0 else { return }
+                        if event.animated {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                            }
+                        } else {
+                            proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                        }
+                    }
                 }
                 .navigationTitle("AuraSteps")
                 .navigationBarTitleDisplayMode(.inline)
