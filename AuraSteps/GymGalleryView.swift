@@ -204,6 +204,7 @@ struct GymGalleryView: View {
 struct GymImageView: View {
     let url: URL
     let authToken: String?
+    @EnvironmentObject var themeManager: ThemeManager
     
     @State private var uiImage: UIImage? = nil
     @State private var isLoading: Bool = true
