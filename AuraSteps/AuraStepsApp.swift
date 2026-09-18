@@ -21,146 +21,171 @@ struct AuraStepsApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                AppBackgroundView()
-                
-                ZStack {
-                    if pocketBaseManager.isLoggedIn {
-                        if pocketBaseManager.currentUser?.isAdmin == true {
-                            // MODO ENTRENADOR (ADMIN)
-                            TrainerDashboardView(
-                                onGoToGallery: { tabScrollManager.selectTab(3) },
-                                onGoToClients: { tabScrollManager.selectTab(1) }
-                            )
-                            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 0)
-                            
-                            TrainerClientsView()
-                                .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 1)
-                            
-                            TrainerRoutinesView()
-                                .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 2)
-                            
-                            TrainerGalleryView()
-                                .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 3)
-                            
-                            SettingsView(tabIndex: 4)
-                                .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 4)
-                        } else {
-                            // MODO ALUMNO (CLIENTE)
-                            DashboardView()
-                                .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 0)
-                            
-                            GymDashboardView(onNavigateToRoutine: {
-                                tabScrollManager.selectTab(2) // Mi Rutina
-                            })
-                            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 1)
-                            
-                            GymRoutineView()
-                                .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 2)
-                            
-                            GymGalleryView()
-                                .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 3)
-                            
-                            SettingsView(tabIndex: 4)
-                                .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
-                                .allowsHitTesting(tabScrollManager.selectedTab == 4)
-                        }
-                    } else {
-                        DashboardView()
-                            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 0)
-                        
-                        SettingsView(tabIndex: 1)
-                            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 1)
-                    }
-                }
-                .animation(.easeInOut(duration: 0.22), value: tabScrollManager.selectedTab)
-                .safeAreaInset(edge: .bottom) {
-                    CustomAnimatedTabBar(isLoggedIn: pocketBaseManager.isLoggedIn, isAdmin: pocketBaseManager.currentUser?.isAdmin == true)
-                }
-            }
-            .onChange(of: pocketBaseManager.isLoggedIn) { loggedIn in
-                if loggedIn {
-                    UIApplication.shared.registerForRemoteNotifications()
-                    Task {
-                        await pocketBaseManager.syncAPNsDeviceToken()
-                        await pocketBaseManager.checkTrainerUpdatesAndNotify()
-                    }
-                } else {
-                    if tabScrollManager.selectedTab > 1 {
-                        tabScrollManager.selectTab(0)
-                    }
-                }
-            }
-            .onChange(of: scenePhase) { newPhase in
-                if newPhase == .active && pocketBaseManager.isLoggedIn {
-                    Task {
-                        await pocketBaseManager.checkTrainerUpdatesAndNotify()
-                    }
-                }
-            }
-            .tint(themeManager.accentColor)
-            .preferredColorScheme(.dark)
-            .environmentObject(motionManager)
-            .environmentObject(deepLinkManager)
-            .environmentObject(dispatcher)
-            .environmentObject(userSettings)
-            .environmentObject(themeManager)
-            .environmentObject(notificationManager)
-            .environmentObject(achievementsManager)
-            .environmentObject(pocketBaseManager)
-            .environmentObject(tabScrollManager)
-            .onOpenURL { url in
-                deepLinkManager.handleURL(url)
-            }
-            .onAppear {
-                if !userSettings.hasCompletedOnboarding {
-                    showOnboarding = true
-                }
-            }
-            .onChange(of: userSettings.hasCompletedOnboarding) { completed in
-                if !completed {
-                    showOnboarding = true
-                }
-            }
-            .sheet(isPresented: $showOnboarding) {
-                WelcomeOnboardingView {
-                    showOnboarding = false
-                }
+            rootContainer
+                .tint(themeManager.accentColor)
+                .preferredColorScheme(.dark)
+                .environmentObject(motionManager)
+                .environmentObject(deepLinkManager)
+                .environmentObject(dispatcher)
                 .environmentObject(userSettings)
                 .environmentObject(themeManager)
                 .environmentObject(notificationManager)
                 .environmentObject(achievementsManager)
-                .interactiveDismissDisabled(true)
-            }
-            .task {
-                if HKHealthStore.isHealthDataAvailable() {
-                    await motionManager.requestHealthKitAuthorization()
+                .environmentObject(pocketBaseManager)
+                .environmentObject(tabScrollManager)
+                .onOpenURL { url in
+                    deepLinkManager.handleURL(url)
                 }
-                if await notificationManager.requestAuthorization() {
-                    await MainActor.run {
-                        UIApplication.shared.registerForRemoteNotifications()
+                .onAppear {
+                    if !userSettings.hasCompletedOnboarding {
+                        showOnboarding = true
                     }
                 }
-                // Comprobación periódica cada 5 minutos mientras la app esté abierta o en background
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutos
-                    if pocketBaseManager.isLoggedIn {
-                        await pocketBaseManager.checkTrainerUpdatesAndNotify()
+                .onChange(of: userSettings.hasCompletedOnboarding) { completed in
+                    if !completed {
+                        showOnboarding = true
                     }
+                }
+                .sheet(isPresented: $showOnboarding) {
+                    WelcomeOnboardingView {
+                        showOnboarding = false
+                    }
+                    .environmentObject(userSettings)
+                    .environmentObject(themeManager)
+                    .environmentObject(notificationManager)
+                    .environmentObject(achievementsManager)
+                    .interactiveDismissDisabled(true)
+                }
+                .task {
+                    if HKHealthStore.isHealthDataAvailable() {
+                        await motionManager.requestHealthKitAuthorization()
+                    }
+                    if await notificationManager.requestAuthorization() {
+                        await MainActor.run {
+                            UIApplication.shared.registerForRemoteNotifications()
+                        }
+                    }
+                    // Comprobación periódica cada 5 minutos mientras la app esté abierta o en background
+                    while !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutos
+                        if pocketBaseManager.isLoggedIn {
+                            await pocketBaseManager.checkTrainerUpdatesAndNotify()
+                        }
+                    }
+                }
+        }
+    }
+    
+    // MARK: - Sub-vistas Descompuestas
+    
+    @ViewBuilder
+    private var rootContainer: some View {
+        ZStack {
+            AppBackgroundView()
+            
+            tabsContent
+                .animation(.easeInOut(duration: 0.22), value: tabScrollManager.selectedTab)
+                .safeAreaInset(edge: .bottom) {
+                    CustomAnimatedTabBar(isLoggedIn: pocketBaseManager.isLoggedIn, isAdmin: pocketBaseManager.currentUser?.isAdmin == true)
+                }
+        }
+        .onChange(of: pocketBaseManager.isLoggedIn) { loggedIn in
+            if loggedIn {
+                UIApplication.shared.registerForRemoteNotifications()
+                Task {
+                    await pocketBaseManager.syncAPNsDeviceToken()
+                    await pocketBaseManager.checkTrainerUpdatesAndNotify()
+                }
+            } else {
+                if tabScrollManager.selectedTab > 1 {
+                    tabScrollManager.selectTab(0)
                 }
             }
         }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active && pocketBaseManager.isLoggedIn {
+                Task {
+                    await pocketBaseManager.checkTrainerUpdatesAndNotify()
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var tabsContent: some View {
+        ZStack {
+            if pocketBaseManager.isLoggedIn {
+                if pocketBaseManager.currentUser?.isAdmin == true {
+                    trainerTabs
+                } else {
+                    clientTabs
+                }
+            } else {
+                loggedOutTabs
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var trainerTabs: some View {
+        TrainerDashboardView(
+            onGoToGallery: { tabScrollManager.selectTab(3) },
+            onGoToClients: { tabScrollManager.selectTab(1) }
+        )
+        .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+        .allowsHitTesting(tabScrollManager.selectedTab == 0)
+        
+        TrainerClientsView()
+            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 1)
+        
+        TrainerRoutinesView()
+            .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 2)
+        
+        TrainerGalleryView()
+            .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 3)
+        
+        SettingsView(tabIndex: 4)
+            .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 4)
+    }
+    
+    @ViewBuilder
+    private var clientTabs: some View {
+        DashboardView()
+            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 0)
+        
+        GymDashboardView(onNavigateToRoutine: {
+            tabScrollManager.selectTab(2) // Mi Rutina
+        })
+        .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+        .allowsHitTesting(tabScrollManager.selectedTab == 1)
+        
+        GymRoutineView()
+            .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 2)
+        
+        GymGalleryView()
+            .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 3)
+        
+        SettingsView(tabIndex: 4)
+            .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 4)
+    }
+    
+    @ViewBuilder
+    private var loggedOutTabs: some View {
+        DashboardView()
+            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 0)
+        
+        SettingsView(tabIndex: 1)
+            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 1)
     }
 }
 
@@ -214,49 +239,7 @@ struct CustomAnimatedTabBar: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(tabs) { tab in
-                let isSelected = tabScrollManager.selectedTab == tab.tag
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
-                    tabScrollManager.selectTab(tab.tag)
-                }) {
-                    VStack(spacing: 4) {
-                        ZStack(alignment: .topTrailing) {
-                            ZStack {
-                                if isSelected {
-                                    Capsule()
-                                        .fill((isAdmin ? Color(hex: "A78BFA") : themeManager.accentColor).opacity(0.18))
-                                        .frame(width: 48, height: 28)
-                                        .matchedGeometryEffect(id: "activeTabPill", in: tabAnimationNamespace)
-                                }
-                                
-                                Image(systemName: tab.icon)
-                                    .font(.system(size: 18, weight: isSelected ? .bold : .medium))
-                                    .foregroundColor(isSelected ? (isAdmin ? Color(hex: "C4B5FD") : themeManager.accentColor) : .gray)
-                            }
-                            
-                            // Badge numérico (ej: 4 en Galería)
-                            if let badge = tab.badgeCount, badge > 0 {
-                                Text("\(badge)")
-                                    .font(.system(size: 10, weight: .black))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color(hex: "7C3AED"))
-                                    .clipShape(Capsule())
-                                    .offset(x: 10, y: -6)
-                            }
-                        }
-                        
-                        Text(tab.label)
-                            .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                            .foregroundColor(isSelected ? (isAdmin ? Color(hex: "C4B5FD") : themeManager.accentColor) : .gray)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle()) // Área completa interactiva para pulsación cómoda
-                }
-                .buttonStyle(.plain)
+                tabButton(for: tab)
             }
         }
         .padding(.horizontal, 6)
@@ -271,5 +254,53 @@ struct CustomAnimatedTabBar: View {
                 .frame(height: 0.5),
             alignment: .top
         )
+    }
+    
+    @ViewBuilder
+    private func tabButton(for tab: TabItemData) -> some View {
+        let isSelected = tabScrollManager.selectedTab == tab.tag
+        let activeColor = isAdmin ? Color(hex: "C4B5FD") : themeManager.accentColor
+        
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            tabScrollManager.selectTab(tab.tag)
+        }) {
+            VStack(spacing: 4) {
+                ZStack(alignment: .topTrailing) {
+                    ZStack {
+                        if isSelected {
+                            Capsule()
+                                .fill(activeColor.opacity(0.18))
+                                .frame(width: 48, height: 28)
+                                .matchedGeometryEffect(id: "activeTabPill", in: tabAnimationNamespace)
+                        }
+                        
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 18, weight: isSelected ? .bold : .medium))
+                            .foregroundColor(isSelected ? activeColor : .gray)
+                    }
+                    
+                    if let badge = tab.badgeCount, badge > 0 {
+                        Text("\(badge)")
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color(hex: "7C3AED"))
+                            .clipShape(Capsule())
+                            .offset(x: 10, y: -6)
+                    }
+                }
+                
+                Text(tab.label)
+                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                    .foregroundColor(isSelected ? activeColor : .gray)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
