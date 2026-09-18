@@ -17,7 +17,7 @@ struct GymRoutineView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
+                Color.clear.ignoresSafeArea()
                 
                 if pbManager.routineDays.isEmpty {
                     emptyStateView

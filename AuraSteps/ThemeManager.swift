@@ -52,6 +52,27 @@ public enum BackgroundColorPreset: String, CaseIterable, Identifiable {
     }
 }
 
+/// Presets de animaciones de fondo interactivas.
+public enum BackgroundAnimationPreset: String, CaseIterable, Identifiable {
+    case none = "Ninguna"
+    case bubbles = "Burbujas"
+    case hexagons = "Hexágonos"
+    case aurora = "Aurora"
+    case stardust = "Polvo Estelar"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .none: return "slash.circle"
+        case .bubbles: return "drop.circle.fill"
+        case .hexagons: return "hexagon.fill"
+        case .aurora: return "waveform.path.ecg"
+        case .stardust: return "sparkles"
+        }
+    }
+}
+
 /// Gestor global del tema visual dinámico de AuraSteps (iOS 16+).
 @MainActor
 public final class ThemeManager: ObservableObject {
@@ -69,16 +90,25 @@ public final class ThemeManager: ObservableObject {
         }
     }
     
+    @Published public var backgroundAnimation: BackgroundAnimationPreset {
+        didSet {
+            UserDefaults.standard.set(backgroundAnimation.rawValue, forKey: "user_background_animation")
+            objectWillChange.send()
+        }
+    }
+    
     public var themeId: String {
-        "\(accentPreset.rawValue)_\(backgroundPreset.rawValue)"
+        "\(accentPreset.rawValue)_\(backgroundPreset.rawValue)_\(backgroundAnimation.rawValue)"
     }
     
     public init() {
         let savedAccent = UserDefaults.standard.string(forKey: "user_accent_preset") ?? AccentColorPreset.neonLime.rawValue
         let savedBg = UserDefaults.standard.string(forKey: "user_background_preset") ?? BackgroundColorPreset.deepNight.rawValue
+        let savedAnim = UserDefaults.standard.string(forKey: "user_background_animation") ?? BackgroundAnimationPreset.none.rawValue
         
         self.accentPreset = AccentColorPreset(rawValue: savedAccent) ?? .neonLime
         self.backgroundPreset = BackgroundColorPreset(rawValue: savedBg) ?? .deepNight
+        self.backgroundAnimation = BackgroundAnimationPreset(rawValue: savedAnim) ?? .none
     }
     
     public var accentColor: Color { accentPreset.color }
@@ -88,5 +118,6 @@ public final class ThemeManager: ObservableObject {
     public func resetToDefaults() {
         self.accentPreset = .neonLime
         self.backgroundPreset = .deepNight
+        self.backgroundAnimation = .none
     }
 }

@@ -13,7 +13,7 @@ struct WelcomeOnboardingView: View {
     
     var body: some View {
         ZStack {
-            themeManager.backgroundColor.ignoresSafeArea()
+            AppBackgroundView()
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 24) {
@@ -236,6 +236,24 @@ struct WelcomeOnboardingView: View {
                         }
                     }
                 }
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            // Selector de Animación de Fondo
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Animación de Fondo:")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    Spacer()
+                    Text(themeManager.backgroundAnimation.rawValue)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(themeManager.accentColor)
+                }
+                
+                BackgroundAnimationPickerView()
             }
         }
         .padding(20)

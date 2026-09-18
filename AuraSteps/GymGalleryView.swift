@@ -27,7 +27,7 @@ struct GymGalleryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
+                Color.clear.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {

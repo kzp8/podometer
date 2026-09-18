@@ -19,7 +19,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
+                Color.clear.ignoresSafeArea()
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
