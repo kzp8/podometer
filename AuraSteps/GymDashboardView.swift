@@ -53,9 +53,6 @@ struct GymDashboardView: View {
             }
             .navigationTitle("Mi Panel")
             .navigationBarTitleDisplayMode(.inline)
-            .refreshable {
-                await pbManager.refreshAllGymData()
-            }
             .task {
                 await pbManager.refreshAllGymData()
             }

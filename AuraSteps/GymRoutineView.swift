@@ -69,12 +69,6 @@ struct GymRoutineView: View {
             .sheet(isPresented: $showHistoryModal) {
                 historyModalView
             }
-            .refreshable {
-                if let user = pbManager.currentUser {
-                    await pbManager.fetchActiveRoutine(forUserId: user.id)
-                    await pbManager.fetchClientNotes(forUserId: user.id)
-                }
-            }
             .task {
                 if let user = pbManager.currentUser {
                     if pbManager.routineDays.isEmpty {

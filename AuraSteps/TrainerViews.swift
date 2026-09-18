@@ -72,9 +72,6 @@ struct TrainerDashboardView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 80)
                     }
-                    .refreshable {
-                        await pbManager.fetchTrainerAllData()
-                    }
                 }
             }
             .navigationBarHidden(true)
@@ -558,9 +555,6 @@ struct TrainerClientsView: View {
                         .padding(.horizontal)
                         .padding(.top, 12)
                         .padding(.bottom, 80)
-                    }
-                    .refreshable {
-                        await pbManager.fetchTrainerClients()
                     }
                 }
             }
@@ -1321,9 +1315,6 @@ struct TrainerRoutinesView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 80)
                     }
-                    .refreshable {
-                        await pbManager.fetchTrainerRoutines()
-                    }
                 }
             }
             .navigationBarHidden(true)
@@ -1766,9 +1757,6 @@ struct TrainerGalleryView: View {
                         .padding(.horizontal)
                         .padding(.top, 12)
                         .padding(.bottom, 80)
-                    }
-                    .refreshable {
-                        await pbManager.fetchTrainerUploads()
                     }
                 }
             }
