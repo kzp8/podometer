@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vista nativa para la visualización y ejecución interactiva de la rutina de entrenamiento del alumno.
+@MainActor
 struct GymRoutineView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager

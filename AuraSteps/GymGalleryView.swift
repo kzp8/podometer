@@ -2,6 +2,7 @@ import SwiftUI
 import AVKit
 
 /// Vista nativa para la galería de progresos subidos y respuestas del entrenador.
+@MainActor
 struct GymGalleryView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager

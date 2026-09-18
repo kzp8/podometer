@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 
 /// Vista nativa para grabar o seleccionar fotos y vídeos del carrete y subirlos al entrenador en PocketBase.
+@MainActor
 struct GymProgressUploadView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager

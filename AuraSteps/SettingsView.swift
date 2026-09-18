@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vista de Ajustes del usuario para personalizar parámetros biométricos, objetivos, recordatorios, insignias, conexiones descentralizadas, colores y purgado de datos.
+@MainActor
 struct SettingsView: View {
     @EnvironmentObject private var userSettings: UserSettingsManager
     @EnvironmentObject private var themeManager: ThemeManager
@@ -737,7 +738,7 @@ struct SettingsView: View {
                             .background(Color.white.opacity(0.06))
                             .cornerRadius(10)
                             .foregroundColor(.white)
-                            .autocapitalize(.none)
+                            .textInputAutocapitalization(.never)
                     }
                     
                     VStack(alignment: .leading, spacing: 6) {
@@ -750,7 +751,7 @@ struct SettingsView: View {
                             .background(Color.white.opacity(0.06))
                             .cornerRadius(10)
                             .foregroundColor(.white)
-                            .autocapitalize(.none)
+                            .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                     }
                     

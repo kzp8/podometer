@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vista nativa principal del panel de Gimnasio cuando el alumno está vinculado a PocketBase.
+@MainActor
 struct GymDashboardView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
