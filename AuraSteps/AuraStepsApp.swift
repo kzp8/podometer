@@ -93,6 +93,11 @@ struct AuraStepsApp: App {
                     showOnboarding = true
                 }
             }
+            .onChange(of: userSettings.hasCompletedOnboarding) { completed in
+                if !completed {
+                    showOnboarding = true
+                }
+            }
             .sheet(isPresented: $showOnboarding) {
                 WelcomeOnboardingView {
                     showOnboarding = false

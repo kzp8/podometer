@@ -83,16 +83,18 @@ struct SettingsView: View {
                     let generator = UINotificationFeedbackGenerator()
                     generator.notificationOccurred(.warning)
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                        pbManager.logout()
+                        tabScrollManager.selectTab(0)
                         deepLinkManager.deleteKeychainConfig()
                         motionManager.clearAllData()
                         userSettings.resetToDefaults()
                         themeManager.resetToDefaults()
                         achievementsManager.resetAchievements()
-                        deleteSuccessMessage = "Todos los datos locales, métricas y temas se han purgado."
+                        deleteSuccessMessage = "Todos los datos, sesión cerrada y ajustes restablecidos."
                     }
                 }
             } message: {
-                Text("Esta acción eliminará de forma irreversible el historial de pasos local, credenciales de Keychain y restablecerá los ajustes a sus valores por defecto.")
+                Text("Esta acción cerrará tu sesión, eliminará de forma irreversible el historial de pasos, credenciales y abrirá de nuevo la configuración inicial.")
             }
         }
     }
