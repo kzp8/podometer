@@ -841,6 +841,35 @@ struct TrainerClientDetailView: View {
     }
     
     @ViewBuilder
+    private func clientNoteRow(note: GymClientNote) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(note.content)
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.9))
+            
+            HStack {
+                Text(note.formattedCreatedDate)
+                    .font(.system(size: 11))
+                    .foregroundColor(.gray)
+                Spacer()
+                if note.seen {
+                    HStack(spacing: 3) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.green)
+                        Text("Leída por cliente")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.03))
+        .cornerRadius(12)
+    }
+
+    @ViewBuilder
     private var clientNotesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -864,31 +893,7 @@ struct TrainerClientDetailView: View {
             } else {
                 let visibleNotes = Array(clientNotesList.prefix(notesLimit))
                 ForEach(visibleNotes) { note in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(note.content)
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.9))
-                        
-                        HStack {
-                            Text(note.formattedCreatedDate)
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                            Spacer()
-                            if note.seen {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.green)
-                                    Text("Leída por cliente")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                        }
-                    }
-                    .padding(12)
-                    .background(Color.white.opacity(0.03))
-                    .cornerRadius(12)
+                    clientNoteRow(note: note)
                 }
                 
                 if clientNotesList.count > notesLimit {
@@ -1060,6 +1065,7 @@ struct TrainerClientDetailView: View {
 @MainActor
 struct TrainerCreateClientSheet: View {
     @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var name: String = ""
