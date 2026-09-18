@@ -395,9 +395,11 @@ struct GymGalleryView: View {
         isDeleting = true
         let idsToDelete = selectedUploadIds
         _ = await pbManager.deleteMultipleProgressUploads(ids: idsToDelete)
-        selectedUploadIds.removeAll()
-        isSelectionMode = false
-        isDeleting = false
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            selectedUploadIds.removeAll()
+            isSelectionMode = false
+            isDeleting = false
+        }
     }
 }
 

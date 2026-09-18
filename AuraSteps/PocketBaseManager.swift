@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 /// Gestor principal de conexión con el backend PocketBase (rutinas, fotos/vídeos de progreso y autenticación de usuarios).
 @MainActor
@@ -626,9 +627,7 @@ public final class PocketBaseManager: ObservableObject {
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
-                withAnimation {
-                    self.progressUploads.removeAll { $0.id == id }
-                }
+                self.progressUploads.removeAll { $0.id == id }
                 return true
             }
         } catch {

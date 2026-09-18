@@ -21,7 +21,7 @@ struct GymProgressUploadView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
+                AppBackgroundView()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
