@@ -28,6 +28,10 @@ struct GymRoutineView: View {
                                 routineHeaderView(routine: routine)
                             }
                             
+                            if !pbManager.clientNotes.isEmpty {
+                                routineTrainerNotesCard
+                            }
+                            
                             daySelectorView
                             
                             if selectedDayIndex < pbManager.routineDays.count {
@@ -50,11 +54,17 @@ struct GymRoutineView: View {
             .refreshable {
                 if let user = pbManager.currentUser {
                     await pbManager.fetchActiveRoutine(forUserId: user.id)
+                    await pbManager.fetchClientNotes(forUserId: user.id)
                 }
             }
             .task {
-                if pbManager.routineDays.isEmpty, let user = pbManager.currentUser {
-                    await pbManager.fetchActiveRoutine(forUserId: user.id)
+                if let user = pbManager.currentUser {
+                    if pbManager.routineDays.isEmpty {
+                        await pbManager.fetchActiveRoutine(forUserId: user.id)
+                    }
+                    if pbManager.clientNotes.isEmpty {
+                        await pbManager.fetchClientNotes(forUserId: user.id)
+                    }
                 }
             }
         }
@@ -128,6 +138,47 @@ struct GymRoutineView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 20)
                 .stroke(themeManager.accentColor.opacity(0.2), lineWidth: 1)
+        )
+    }
+    
+    @ViewBuilder
+    private var routineTrainerNotesCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "quote.bubble.fill")
+                    .foregroundColor(themeManager.accentColor)
+                    .font(.caption)
+                Text("Notas del entrenador")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                Spacer()
+                Text("\(pbManager.clientNotes.count)")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(themeManager.accentColor)
+                    .clipShape(Capsule())
+            }
+            
+            ForEach(pbManager.clientNotes) { note in
+                Text(note.content ?? "")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.85))
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(10)
+            }
+        }
+        .padding(14)
+        .background(themeManager.cardColor)
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(themeManager.accentColor.opacity(0.15), lineWidth: 1)
         )
     }
     

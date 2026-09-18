@@ -19,19 +19,19 @@ struct AuraStepsApp: App {
         WindowGroup {
             TabView(selection: $selectedTab) {
                 if pocketBaseManager.isLoggedIn {
+                    DashboardView()
+                        .tabItem {
+                            Label("Pasos", systemImage: "figure.walk")
+                        }
+                        .tag(0)
+                    
                     GymDashboardView(onNavigateToRoutine: {
                         selectedTab = 2 // Mi Rutina
                     })
                     .tabItem {
                         Label("Inicio", systemImage: "house.fill")
                     }
-                    .tag(0)
-                    
-                    DashboardView()
-                        .tabItem {
-                            Label("Pasos", systemImage: "figure.walk")
-                        }
-                        .tag(1)
+                    .tag(1)
                     
                     GymRoutineView()
                         .tabItem {

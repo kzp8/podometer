@@ -177,6 +177,21 @@ public struct ClientRoutineExpand: Codable, Sendable {
     public let routine: GymRoutine?
 }
 
+/// Modelo que representa una nota dejada por el entrenador para el cliente (client_notes).
+public struct GymClientNote: Identifiable, Codable, Sendable {
+    public let id: String
+    public let client: String?
+    public let content: String?
+    public let created: String?
+    
+    public init(id: String, client: String? = nil, content: String? = nil, created: String? = nil) {
+        self.id = id
+        self.client = client
+        self.content = content
+        self.created = created
+    }
+}
+
 /// Respuesta paginada de PocketBase.
 public struct PocketBaseListResponse<T: Codable & Sendable>: Codable, Sendable {
     public let page: Int
@@ -185,4 +200,5 @@ public struct PocketBaseListResponse<T: Codable & Sendable>: Codable, Sendable {
     public let totalPages: Int
     public let items: [T]
 }
+
 

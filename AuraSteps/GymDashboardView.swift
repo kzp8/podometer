@@ -25,6 +25,7 @@ struct GymDashboardView: View {
                         }
                         
                         userWelcomeCard
+                        trainerNotesSection
                         activeRoutineSection
                         recentUploadsSection
                     }
@@ -34,19 +35,6 @@ struct GymDashboardView: View {
             }
             .navigationTitle("Mi Panel")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if let user = pbManager.currentUser {
-                        Text(user.initials)
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
-                            .background(themeManager.accentColor)
-                            .clipShape(Circle())
-                    }
-                }
-            }
             .refreshable {
                 await pbManager.refreshAllGymData()
             }
@@ -280,5 +268,63 @@ struct GymDashboardView: View {
             RoundedRectangle(cornerRadius: 22)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
+    }
+    
+    @ViewBuilder
+    private var trainerNotesSection: some View {
+        if !pbManager.clientNotes.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "quote.bubble.fill")
+                        .foregroundColor(themeManager.accentColor)
+                        .font(.subheadline)
+                    Text("Notas de tu entrenador")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text("\(pbManager.clientNotes.count)")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(themeManager.accentColor)
+                        .clipShape(Capsule())
+                }
+                
+                VStack(spacing: 10) {
+                    ForEach(pbManager.clientNotes) { note in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "pencil.line")
+                                .foregroundColor(themeManager.accentColor.opacity(0.9))
+                                .font(.footnote)
+                                .padding(.top, 2)
+                            
+                            Text(note.content ?? "")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
+                            
+                            Spacer()
+                        }
+                        .padding(14)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(themeManager.accentColor.opacity(0.18), lineWidth: 1)
+                        )
+                    }
+                }
+            }
+            .padding(18)
+            .background(themeManager.cardColor)
+            .cornerRadius(22)
+            .overlay(
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
     }
 }

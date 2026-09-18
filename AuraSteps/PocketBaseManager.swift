@@ -30,6 +30,7 @@ public final class PocketBaseManager: ObservableObject {
     @Published public var routineDays: [GymRoutineDay] = []
     @Published public var completedDayIds: Set<String> = []
     @Published public var progressUploads: [GymProgressUpload] = []
+    @Published public var clientNotes: [GymClientNote] = []
     @Published public var streak: Int = 0
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String?
@@ -125,6 +126,7 @@ public final class PocketBaseManager: ObservableObject {
         self.routineDays = []
         self.completedDayIds = []
         self.progressUploads = []
+        self.clientNotes = []
         self.streak = 0
         self.errorMessage = nil
     }
@@ -187,6 +189,7 @@ public final class PocketBaseManager: ObservableObject {
         await fetchFileToken()
         await fetchActiveRoutine(forUserId: user.id)
         await fetchProgressUploads(forUserId: user.id)
+        await fetchClientNotes(forUserId: user.id)
     }
     
     public func fetchActiveRoutine(forUserId userId: String) async {
@@ -581,6 +584,66 @@ public final class PocketBaseManager: ObservableObject {
             print("Error en subida de progreso: \(error.localizedDescription)")
         }
         return false
+    }
+    
+    // MARK: - Notas del Entrenador (client_notes)
+    
+    public func fetchClientNotes(forUserId userId: String) async {
+        guard let token = authToken else { return }
+        let filterStr = "client = \"\(userId)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)") else { return }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                do {
+                    let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymClientNote>.self, from: data)
+                    self.clientNotes = listResp.items
+                } catch {
+                    print("Decode error GymClientNote: \(error)")
+                }
+            } else if let httpResp = response as? HTTPURLResponse {
+                print("PocketBase fetchClientNotes HTTP Error: \(httpResp.statusCode)")
+            }
+        } catch {
+            print("Error cargando client_notes: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Eliminación de Archivos de Progreso
+    
+    public func deleteProgressUpload(id: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records/\(id)") else { return false }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                withAnimation {
+                    self.progressUploads.removeAll { $0.id == id }
+                }
+                return true
+            }
+        } catch {
+            print("Error eliminando progress_upload \(id): \(error.localizedDescription)")
+        }
+        return false
+    }
+    
+    public func deleteMultipleProgressUploads(ids: Set<String>) async -> Int {
+        var count = 0
+        for id in ids {
+            let success = await deleteProgressUpload(id: id)
+            if success { count += 1 }
+        }
+        return count
     }
     
     public func getFileURL(recordId: String, collectionName: String = "progress_uploads", fileName: String) -> URL? {
