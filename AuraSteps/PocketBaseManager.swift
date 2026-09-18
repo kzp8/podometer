@@ -40,7 +40,7 @@ public final class PocketBaseManager: ObservableObject {
     }
     
     public init() {
-        let savedURL = UserDefaults.standard.string(forKey: "pocketbase_server_url") ?? "http://127.0.0.1:8090"
+        let savedURL = UserDefaults.standard.string(forKey: "pocketbase_server_url") ?? "https://pb-gymapp-1.davidrus.dev"
         let savedToken = UserDefaults.standard.string(forKey: "pocketbase_auth_token")
         
         self.serverURL = savedURL

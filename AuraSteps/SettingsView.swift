@@ -732,7 +732,7 @@ struct SettingsView: View {
                         Text("Servidor PocketBase:")
                             .font(.caption2)
                             .foregroundColor(.gray)
-                        TextField("http://127.0.0.1:8090", text: $pbManager.serverURL)
+                        TextField("https://pb-gymapp-1.davidrus.dev", text: $pbManager.serverURL)
                             .textFieldStyle(.plain)
                             .padding(10)
                             .background(Color.white.opacity(0.06))
