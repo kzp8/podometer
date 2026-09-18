@@ -220,11 +220,16 @@ public final class PocketBaseManager: ObservableObject {
                     
                     if let expand = firstAssignment["expand"] as? [String: Any],
                        let routineDict = expand["routine"] as? [String: Any],
-                       let routineData = try? JSONSerialization.data(withJSONObject: routineDict),
-                       let routine = try? JSONDecoder().decode(GymRoutine.self, from: routineData) {
+                       let routineData = try? JSONSerialization.data(withJSONObject: routineDict) {
                         
-                        self.activeRoutine = routine
-                        targetRoutineId = routine.id
+                        do {
+                            let routine = try JSONDecoder().decode(GymRoutine.self, from: routineData)
+                            self.activeRoutine = routine
+                            targetRoutineId = routine.id
+                        } catch {
+                            self.errorMessage = "Error de rutina: \(error)"
+                            print("Decode error GymRoutine: \(error)")
+                        }
                     }
                     
                     if let rId = targetRoutineId {
@@ -248,9 +253,13 @@ public final class PocketBaseManager: ObservableObject {
                 var req = URLRequest(url: url)
                 req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 if let (data, resp) = try? await URLSession.shared.data(for: req),
-                   let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
-                   let routine = try? JSONDecoder().decode(GymRoutine.self, from: data) {
-                    self.activeRoutine = routine
+                   let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                    do {
+                        let routine = try JSONDecoder().decode(GymRoutine.self, from: data)
+                        self.activeRoutine = routine
+                    } catch {
+                        print("Decode error GymRoutine (single): \(error)")
+                    }
                 }
             }
         }
@@ -260,9 +269,14 @@ public final class PocketBaseManager: ObservableObject {
             var req = URLRequest(url: url)
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             if let (data, resp) = try? await URLSession.shared.data(for: req),
-               let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
-               let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: data) {
-                self.routineDays = listResp.items
+               let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                do {
+                    let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: data)
+                    self.routineDays = listResp.items
+                } catch {
+                    self.errorMessage = "Error días rutina: \(error)"
+                    print("Decode error PocketBaseListResponse<GymRoutineDay>: \(error)")
+                }
             }
         }
         
@@ -280,9 +294,13 @@ public final class PocketBaseManager: ObservableObject {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         if let (data, resp) = try? await URLSession.shared.data(for: req),
-           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
-           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data) {
-            self.completedDayIds = Set(listResp.items.map { $0.routine_day })
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            do {
+                let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data)
+                self.completedDayIds = Set(listResp.items.map { $0.routine_day })
+            } catch {
+                print("Decode error PocketBaseListResponse<GymWorkoutCompletion>: \(error)")
+            }
         }
     }
     
@@ -340,8 +358,15 @@ public final class PocketBaseManager: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
-                if let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data) {
+                do {
+                    let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data)
                     self.progressUploads = listResp.items
+                } catch {
+                    self.errorMessage = "Error de progreso: \(error)"
+                    print("Decode error PocketBaseListResponse<GymProgressUpload>: \(error)")
+                    if let str = String(data: data, encoding: .utf8) {
+                        print("JSON response: \(str)")
+                    }
                 }
             } else if let httpResp = response as? HTTPURLResponse {
                 print("PocketBase fetchProgressUploads HTTP Error: \(httpResp.statusCode)")

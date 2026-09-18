@@ -15,6 +15,15 @@ struct GymDashboardView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
+                        if let error = pbManager.errorMessage {
+                            Text("Error: \(error)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding()
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(10)
+                        }
+                        
                         userWelcomeCard
                         activeRoutineSection
                         recentUploadsSection
