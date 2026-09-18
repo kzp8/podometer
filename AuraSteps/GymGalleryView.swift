@@ -278,29 +278,9 @@ struct GymGalleryView: View {
                 if let fileName = item.file,
                    let url = pbManager.getFileURL(recordId: item.id, fileName: fileName) {
                     if item.isVideo {
-                        // El vídeo NO se reproduce aquí en tarjeta: muestra indicador de tocar para reproducir
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color.white.opacity(0.05))
-                                .frame(height: 180)
-                            
-                            VStack(spacing: 10) {
-                                ZStack {
-                                    Circle()
-                                        .fill(themeManager.accentColor)
-                                        .frame(width: 54, height: 54)
-                                    Image(systemName: "play.fill")
-                                        .font(.title3)
-                                        .foregroundColor(.black)
-                                        .offset(x: 2)
-                                }
-                                
-                                Text("Toca para reproducir a pantalla completa")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                        }
+                        GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                            .frame(height: 180)
+                            .cornerRadius(14)
                     } else {
                         GymImageView(url: url, authToken: pbManager.authToken)
                             .frame(maxHeight: 220)
@@ -683,3 +663,117 @@ struct GymImageView: View {
         isLoading = false
     }
 }
+
+// MARK: - Miniatura de Vídeo con Caché
+
+private final class VideoThumbnailCache {
+    static let shared = NSCache<NSURL, UIImage>()
+}
+
+@MainActor
+struct GymVideoThumbnailView: View {
+    let url: URL
+    let authToken: String?
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    @State private var thumbnail: UIImage? = nil
+    @State private var isLoading: Bool = true
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.06))
+            
+            if let image = thumbnail {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: 180)
+                    .clipped()
+                
+                // Degradado suave para resaltar el botón de reproducción
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.black.opacity(0.1), Color.black.opacity(0.45)]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            } else if isLoading {
+                ProgressView()
+                    .tint(themeManager.accentColor)
+            }
+            
+            // Botón de play superpuesto
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(Color.black.opacity(0.55))
+                        .frame(width: 52, height: 52)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                    
+                    Circle()
+                        .fill(themeManager.accentColor)
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "play.fill")
+                        .font(.body)
+                        .foregroundColor(.black)
+                        .offset(x: 1.5)
+                }
+                
+                Text("Toca para reproducir")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.7), radius: 3, x: 0, y: 1)
+            }
+        }
+        .clipped()
+        .task(id: url) {
+            await loadThumbnail()
+        }
+    }
+    
+    private func loadThumbnail() async {
+        if let cached = VideoThumbnailCache.shared.object(forKey: url as NSURL) {
+            self.thumbnail = cached
+            self.isLoading = false
+            return
+        }
+        
+        isLoading = true
+        var options: [String: Any] = [:]
+        if let token = authToken, !token.isEmpty {
+            options["AVURLAssetHTTPHeaderFieldsKey"] = ["Authorization": "Bearer \(token)"]
+        }
+        
+        let asset = AVURLAsset(url: url, options: options)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 600, height: 600)
+        
+        let time = CMTime(seconds: 0.8, preferredTimescale: 600)
+        
+        do {
+            let (cgImage, _) = try await generator.image(at: time)
+            let uiImg = UIImage(cgImage: cgImage)
+            VideoThumbnailCache.shared.setObject(uiImg, forKey: url as NSURL)
+            self.thumbnail = uiImg
+        } catch {
+            // Intento fallback al segundo 0 si el vídeo es más corto
+            do {
+                let (cgImage, _) = try await generator.image(at: .zero)
+                let uiImg = UIImage(cgImage: cgImage)
+                VideoThumbnailCache.shared.setObject(uiImg, forKey: url as NSURL)
+                self.thumbnail = uiImg
+            } catch {
+                print("Error generando miniatura de vídeo: \(error.localizedDescription)")
+            }
+        }
+        
+        self.isLoading = false
+    }
+}
+
