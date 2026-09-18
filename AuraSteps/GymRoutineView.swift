@@ -120,38 +120,43 @@ struct GymRoutineView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(Array(pbManager.routineDays.enumerated()), id: \.offset) { index, day in
-                    let isSelected = selectedDayIndex == index
-                    let isDone = pbManager.completedDayIds.contains(day.id)
-                    
-                    Button(action: {
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedDayIndex = index
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            if isDone {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(isSelected ? .black : Color(red: 0.1, green: 0.8, blue: 0.4))
-                            }
-                            Text(day.day_name)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                        }
-                        .foregroundColor(isSelected ? .black : .gray)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 18)
-                        .background(isSelected ? Color.purple : Color(red: 0.12, green: 0.12, blue: 0.14))
-                        .cornerRadius(14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(isSelected ? Color.purple : Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                    }
+                    dayButton(index: index, day: day)
                 }
             }
             .padding(.horizontal, 4)
+        }
+    }
+    
+    @ViewBuilder
+    private func dayButton(index: Int, day: GymRoutineDay) -> some View {
+        let isSelected = selectedDayIndex == index
+        let isDone = pbManager.completedDayIds.contains(day.id)
+        
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selectedDayIndex = index
+            }
+        }) {
+            HStack(spacing: 6) {
+                if isDone {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(isSelected ? .black : Color(red: 0.1, green: 0.8, blue: 0.4))
+                }
+                Text(day.title)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+            }
+            .foregroundColor(isSelected ? .black : .gray)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 18)
+            .background(isSelected ? Color.purple : Color(red: 0.12, green: 0.12, blue: 0.14))
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? Color.purple : Color.white.opacity(0.08), lineWidth: 1)
+            )
         }
     }
     
@@ -163,7 +168,7 @@ struct GymRoutineView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Encabezado del Día
             HStack {
-                Text(currentDay.day_name.uppercased())
+                Text(currentDay.title.uppercased())
                     .font(.caption)
                     .fontWeight(.heavy)
                     .foregroundColor(.purple)
