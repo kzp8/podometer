@@ -133,28 +133,32 @@ struct AuraStepsApp: App {
     
     @ViewBuilder
     private var trainerTabs: some View {
+        DashboardView()
+            .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 0)
+
         TrainerDashboardView(
-            onGoToGallery: { tabScrollManager.selectTab(3) },
-            onGoToClients: { tabScrollManager.selectTab(1) }
+            onGoToGallery: { tabScrollManager.selectTab(4) },
+            onGoToClients: { tabScrollManager.selectTab(2) }
         )
-        .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
-        .allowsHitTesting(tabScrollManager.selectedTab == 0)
+        .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+        .allowsHitTesting(tabScrollManager.selectedTab == 1)
         
         TrainerClientsView()
-            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
-            .allowsHitTesting(tabScrollManager.selectedTab == 1)
-        
-        TrainerRoutinesView()
             .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
             .allowsHitTesting(tabScrollManager.selectedTab == 2)
         
-        TrainerGalleryView()
+        TrainerRoutinesView()
             .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
             .allowsHitTesting(tabScrollManager.selectedTab == 3)
         
-        SettingsView(tabIndex: 4)
+        TrainerGalleryView()
             .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
             .allowsHitTesting(tabScrollManager.selectedTab == 4)
+        
+        SettingsView(tabIndex: 5)
+            .opacity(tabScrollManager.selectedTab == 5 ? 1 : 0)
+            .allowsHitTesting(tabScrollManager.selectedTab == 5)
     }
     
     @ViewBuilder
@@ -218,11 +222,12 @@ struct CustomAnimatedTabBar: View {
             if isAdmin {
                 let pendingCount = pbManager.pendingReviewsCount
                 return [
-                    TabItemData(tag: 0, label: "Inicio", icon: "square.grid.2x2.fill"),
-                    TabItemData(tag: 1, label: "Clientes", icon: "person.2.fill"),
-                    TabItemData(tag: 2, label: "Rutinas", icon: "dumbbell.fill"),
-                    TabItemData(tag: 3, label: "Galería", icon: "video.fill", badgeCount: pendingCount > 0 ? pendingCount : nil),
-                    TabItemData(tag: 4, label: "Ajustes", icon: "gearshape.fill")
+                    TabItemData(tag: 0, label: "Pasos", icon: "figure.walk"),
+                    TabItemData(tag: 1, label: "Inicio", icon: "square.grid.2x2.fill"),
+                    TabItemData(tag: 2, label: "Clientes", icon: "person.2.fill"),
+                    TabItemData(tag: 3, label: "Rutinas", icon: "dumbbell.fill"),
+                    TabItemData(tag: 4, label: "Galería", icon: "video.fill", badgeCount: pendingCount > 0 ? pendingCount : nil),
+                    TabItemData(tag: 5, label: "Ajustes", icon: "gearshape.fill")
                 ]
             } else {
                 return [

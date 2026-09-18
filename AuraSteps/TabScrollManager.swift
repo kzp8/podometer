@@ -40,11 +40,11 @@ public final class TabScrollManager: ObservableObject {
     
     public func resetPathForTab(_ tab: Int) {
         switch tab {
-        case 1:
-            clientsPath = NavigationPath()
         case 2:
-            routinesPath = NavigationPath()
+            clientsPath = NavigationPath()
         case 3:
+            routinesPath = NavigationPath()
+        case 4:
             galleryPath = NavigationPath()
         default:
             break
@@ -56,7 +56,7 @@ public final class TabScrollManager: ObservableObject {
         var newPath = NavigationPath()
         newPath.append(client)
         clientsPath = newPath
-        selectedTab = 1 // Pestaña Clientes
+        selectedTab = 2 // Pestaña Clientes
     }
     
     /// Navega a la pestaña de Galería, navegando primero al cliente y luego a la entrega de media concreta.
@@ -67,7 +67,7 @@ public final class TabScrollManager: ObservableObject {
         }
         newPath.append(upload)
         galleryPath = newPath
-        selectedTab = 3 // Pestaña Galería
+        selectedTab = 4 // Pestaña Galería
     }
     
     public func requestScrollToTop(_ tab: Int, animated: Bool = true) {
