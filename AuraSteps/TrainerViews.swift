@@ -765,17 +765,21 @@ struct TrainerClientDetailView: View {
                     .font(.caption)
                     .foregroundColor(.gray)
             } else {
-                VStack(spacing: 10) {
-                    Picker("Seleccionar Rutina", selection: $selectedRoutineToAssign) {
-                        Text("Seleccionar Rutina...").tag("")
-                        ForEach(pbManager.trainerRoutines) { r in
-                            Text(r.name).tag(r.id)
+                VStack(spacing: 12) {
+                    HStack {
+                        Picker("Seleccionar Rutina", selection: $selectedRoutineToAssign) {
+                            Text("Seleccionar Rutina...").tag("")
+                            ForEach(pbManager.trainerRoutines) { r in
+                                Text(r.name).tag(r.id)
+                            }
                         }
+                        .pickerStyle(.menu)
+                        .tint(themeManager.accentColor)
+                        Spacer()
                     }
-                    .pickerStyle(.menu)
-                    .tint(themeManager.accentColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
                     .background(Color.white.opacity(0.06))
                     .cornerRadius(12)
                     
@@ -784,14 +788,15 @@ struct TrainerClientDetailView: View {
                             if isAssigningRoutine {
                                 ProgressView().tint(.black)
                             } else {
+                                Image(systemName: "checkmark.circle.fill")
                                 Text("Asignar Rutina")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.black)
                             }
                         }
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(themeManager.accentColor)
+                        .background(selectedRoutineToAssign.isEmpty ? Color.gray.opacity(0.5) : themeManager.accentColor)
                         .cornerRadius(12)
                     }
                     .disabled(selectedRoutineToAssign.isEmpty || isAssigningRoutine)
@@ -799,6 +804,7 @@ struct TrainerClientDetailView: View {
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.04))
         .cornerRadius(18)
     }
@@ -1321,6 +1327,9 @@ struct TrainerRoutinesView: View {
                 }
             }
             .navigationBarHidden(true)
+            .task {
+                await pbManager.fetchTrainerRoutines()
+            }
             .sheet(isPresented: $showCreateRoutineSheet) {
                 TrainerCreateRoutineSheet()
             }

@@ -864,8 +864,8 @@ public final class PocketBaseManager: ObservableObject {
         guard let token = authToken, let user = currentUser, user.isAdmin else { return }
         
         // Rutinas de este entrenador o rutinas globales sin entrenador
-        let filterStr = "trainer = \"\(user.id)\" || trainer = \"\" || trainer = null".pocketBaseQueryEncoded
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records?filter=\(filterStr)&sort=-created") else { return }
+        let filterStr = "trainer = \"\(user.id)\" || trainer = \"\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records?filter=\(filterStr)") else { return }
         
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -1153,7 +1153,7 @@ public final class PocketBaseManager: ObservableObject {
     public func fetchNotesForClient(clientId: String) async -> [GymClientNote] {
         guard let token = authToken else { return [] }
         let filterStr = "client = \"\(clientId)\"".pocketBaseQueryEncoded
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)&sort=-created") else { return [] }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)") else { return [] }
         
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
