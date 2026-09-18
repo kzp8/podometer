@@ -843,7 +843,7 @@ struct TrainerClientDetailView: View {
     @ViewBuilder
     private func clientNoteRow(note: GymClientNote) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(note.content)
+            Text(note.content ?? "")
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.9))
             
