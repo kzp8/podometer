@@ -32,7 +32,6 @@ struct SettingsView: View {
                         goalsAndRemindersSection
                         achievementsGridSection
                         gymConnectionSection
-                        connectionSection
                         themeSection
                         privacySection
                     }
@@ -374,154 +373,6 @@ struct SettingsView: View {
         .padding(.horizontal)
     }
     
-    @ViewBuilder
-    private var connectionSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "network")
-                    .font(.title3)
-                    .foregroundColor(themeManager.accentColor)
-                
-                Text("Conexiones y Servidores")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                StatusBadge(isConnected: deepLinkManager.activeConfig != nil, accentColor: themeManager.accentColor)
-            }
-            
-            Divider().background(Color.white.opacity(0.1))
-            
-            if let config = deepLinkManager.activeConfig {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Plataforma:")
-                            .foregroundColor(.gray)
-                        Text(config.appName)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                    }
-                    
-                    HStack {
-                        Text("Endpoint HTTPS:")
-                            .foregroundColor(.gray)
-                        Text(config.endpoint.absoluteString)
-                            .font(.caption)
-                            .foregroundColor(themeManager.accentColor)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    
-                    HStack {
-                        Text("Token Cliente:")
-                            .foregroundColor(.gray)
-                        Text(maskedToken(config.token))
-                            .font(.caption)
-                            .monospaced()
-                            .foregroundColor(.white)
-                    }
-                }
-                .font(.subheadline)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Sin conexión activa")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                    
-                    Text("Escanea un código QR provisto por tu gimnasio o abre un enlace 'aurasteps://connect' para transmitir métricas.")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            
-            VStack(spacing: 12) {
-                Button(action: {
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        isQRButtonPressed = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        isQRButtonPressed = false
-                        isPresentingQRScanner = true
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.title3)
-                        Text("Escanear Código QR")
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(themeManager.accentColor)
-                    .cornerRadius(16)
-                    .scaleEffect(isQRButtonPressed ? 0.95 : 1.0)
-                    .shadow(color: themeManager.accentColor.opacity(0.4), radius: 6)
-                }
-                
-                if let config = deepLinkManager.activeConfig {
-                    Button(action: {
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            isPingButtonPressed = true
-                        }
-                        Task { @MainActor in
-                            let success = await dispatcher.dispatchMetrics(
-                                config: config,
-                                motionManager: motionManager,
-                                isManualPing: true
-                            )
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                isPingButtonPressed = false
-                                if success {
-                                    pingResultMessage = "✓ Sincronización de prueba enviada con éxito (HTTP 200)."
-                                } else {
-                                    pingResultMessage = "✕ Error en la sincronización de prueba."
-                                }
-                            }
-                        }
-                    }) {
-                        HStack {
-                            if dispatcher.isSyncing {
-                                ProgressView()
-                                    .tint(.white)
-                                    .padding(.trailing, 4)
-                            } else {
-                                Image(systemName: "paperplane.fill")
-                            }
-                            Text("Probar Envío (Ping)")
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(16)
-                        .scaleEffect(isPingButtonPressed ? 0.95 : 1.0)
-                    }
-                    .disabled(dispatcher.isSyncing)
-                }
-                
-                if let pingMsg = pingResultMessage {
-                    Text(pingMsg)
-                        .font(.caption)
-                        .foregroundColor(pingMsg.contains("éxito") ? themeManager.accentColor : .red)
-                        .padding(.top, 4)
-                        .transition(.opacity.combined(with: .scale))
-                }
-            }
-            .padding(.top, 4)
-        }
-        .padding(20)
-        .background(themeManager.cardColor)
-        .cornerRadius(24)
-        .padding(.horizontal)
-    }
     
     @ViewBuilder
     private var themeSection: some View {
@@ -673,10 +524,10 @@ struct SettingsView: View {
     private var gymConnectionSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: "figure.cross.training")
+                Image(systemName: "link")
                     .font(.title3)
                     .foregroundColor(themeManager.accentColor)
-                Text("Gimnasio y Entrenador (PocketBase)")
+                Text("Conectar")
                     .font(.headline)
                     .foregroundColor(.white)
                 Spacer()
@@ -717,29 +568,12 @@ struct SettingsView: View {
                         .background(Color.red.opacity(0.15))
                         .cornerRadius(10)
                     }
-                    
-                    Text("Servidor: \(pbManager.serverURL)")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Vincular con tu entrenador te permite ver tus rutinas asignadas, marcar series y subir vídeos de progreso.")
+                    Text("Inicia sesión con tu cuenta de alumno para ver tu rutina asignada y enviar entregas a tu entrenador.")
                         .font(.caption)
                         .foregroundColor(.gray)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Servidor PocketBase:")
-                            .font(.caption2)
-                            .foregroundColor(.gray)
-                        TextField("https://pb-gymapp-1.davidrus.dev", text: $pbManager.serverURL)
-                            .textFieldStyle(.plain)
-                            .padding(10)
-                            .background(Color.white.opacity(0.06))
-                            .cornerRadius(10)
-                            .foregroundColor(.white)
-                            .textInputAutocapitalization(.never)
-                    }
                     
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Email de Alumno:")

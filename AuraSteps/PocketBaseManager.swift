@@ -4,11 +4,8 @@ import Combine
 /// Gestor principal de conexión con el backend PocketBase (rutinas, fotos/vídeos de progreso y autenticación de usuarios).
 @MainActor
 public final class PocketBaseManager: ObservableObject {
-    @Published public var serverURL: String {
-        didSet {
-            UserDefaults.standard.set(serverURL, forKey: "pocketbase_server_url")
-        }
-    }
+    public let serverURL: String = "https://pb-gymapp-1.davidrus.dev"
+    
     @Published public var authToken: String? {
         didSet {
             if let token = authToken {
@@ -40,10 +37,7 @@ public final class PocketBaseManager: ObservableObject {
     }
     
     public init() {
-        let savedURL = UserDefaults.standard.string(forKey: "pocketbase_server_url") ?? "https://pb-gymapp-1.davidrus.dev"
         let savedToken = UserDefaults.standard.string(forKey: "pocketbase_auth_token")
-        
-        self.serverURL = savedURL
         self.authToken = savedToken
         
         if let userData = UserDefaults.standard.data(forKey: "pocketbase_user_data"),
@@ -58,7 +52,7 @@ public final class PocketBaseManager: ObservableObject {
         }
     }
     
-    /// Normaliza la URL formateando la barra final si no está.
+    /// Normaliza la URL del servidor base.
     private var normalizedBaseURL: String {
         var url = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if url.hasSuffix("/") {
@@ -142,9 +136,8 @@ public final class PocketBaseManager: ObservableObject {
     public func fetchActiveRoutine(forUserId userId: String) async {
         guard let token = authToken else { return }
         
-        // 1. Obtener la asignación de rutina activa (client_routines)
         let filterStr = "(client=\"\(userId)\" && active=true)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)") else { return }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&expand=routine") else { return }
         
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -153,12 +146,24 @@ public final class PocketBaseManager: ObservableObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let items = json["items"] as? [[String: Any]],
-               let firstAssignment = items.first,
-               let routineId = firstAssignment["routine"] as? String {
+               let firstAssignment = items.first {
                 
-                await fetchRoutineDetails(routineId: routineId)
+                var targetRoutineId: String? = firstAssignment["routine"] as? String
+                
+                // Extraer el objeto de rutina expandido
+                if let expand = firstAssignment["expand"] as? [String: Any],
+                   let routineDict = expand["routine"] as? [String: Any],
+                   let routineData = try? JSONSerialization.data(withJSONObject: routineDict),
+                   let routine = try? JSONDecoder().decode(GymRoutine.self, from: routineData) {
+                    
+                    self.activeRoutine = routine
+                    targetRoutineId = routine.id
+                }
+                
+                if let rId = targetRoutineId {
+                    await fetchRoutineDays(routineId: rId)
+                }
             } else {
-                // Si no hay asignación activa explícita, intentar obtener la primera rutina disponible
                 await fetchFirstAvailableRoutine()
             }
         } catch {
@@ -177,29 +182,31 @@ public final class PocketBaseManager: ObservableObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             let response = try JSONDecoder().decode(PocketBaseListResponse<GymRoutine>.self, from: data)
             if let firstRoutine = response.items.first {
-                await fetchRoutineDetails(routineId: firstRoutine.id)
+                self.activeRoutine = firstRoutine
+                await fetchRoutineDays(routineId: firstRoutine.id)
             }
         } catch {
             print("Error obteniendo rutina por defecto: \(error.localizedDescription)")
         }
     }
     
-    private func fetchRoutineDetails(routineId: String) async {
+    private func fetchRoutineDays(routineId: String) async {
         guard let token = authToken else { return }
         
-        // Cargar modelo de Rutina
-        if let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(routineId)") {
-            var req = URLRequest(url: url)
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            if let (data, _) = try? await URLSession.shared.data(for: req),
-               let routine = try? JSONDecoder().decode(GymRoutine.self, from: data) {
-                self.activeRoutine = routine
+        // Si no teníamos los datos completos de la rutina, cargarlos directamente
+        if self.activeRoutine == nil || self.activeRoutine?.id != routineId {
+            if let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(routineId)") {
+                var req = URLRequest(url: url)
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                if let (data, _) = try? await URLSession.shared.data(for: req),
+                   let routine = try? JSONDecoder().decode(GymRoutine.self, from: data) {
+                    self.activeRoutine = routine
+                }
             }
         }
         
-        // Cargar Días de la Rutina
         let filterStr = "(routine=\"\(routineId)\")".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(filterStr)&sort=day_number") {
+        if let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(filterStr)&sort=created") {
             var req = URLRequest(url: url)
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             if let (data, _) = try? await URLSession.shared.data(for: req),
@@ -213,7 +220,8 @@ public final class PocketBaseManager: ObservableObject {
     
     public func fetchCompletions() async {
         guard let token = authToken, let user = currentUser else { return }
-        let filterStr = "(client=\"\(user.id)\")".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let today = Date().formatted(.iso8601).prefix(10)
+        let filterStr = "(client=\"\(user.id)\" && completed_date=\"\(today)\")".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         
         guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") else { return }
         var req = URLRequest(url: url)
@@ -227,13 +235,29 @@ public final class PocketBaseManager: ObservableObject {
     
     public func toggleDayCompletion(dayId: String) async {
         guard let token = authToken, let user = currentUser else { return }
+        let todayStr = String(Date().formatted(.iso8601).prefix(10))
         
         if completedDayIds.contains(dayId) {
             completedDayIds.remove(dayId)
-            // Opcionalmente eliminar del servidor
+            // Buscar y eliminar en PocketBase
+            let filterStr = "(client=\"\(user.id)\" && routine_day=\"\(dayId)\" && completed_date=\"\(todayStr)\")".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            if let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") {
+                var req = URLRequest(url: url)
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                if let (data, _) = try? await URLSession.shared.data(for: req),
+                   let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data),
+                   let firstItem = listResp.items.first {
+                    
+                    if let delURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records/\(firstItem.id)") {
+                        var delReq = URLRequest(url: delURL)
+                        delReq.httpMethod = "DELETE"
+                        delReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                        _ = try? await URLSession.shared.data(for: delReq)
+                    }
+                }
+            }
         } else {
             completedDayIds.insert(dayId)
-            // Guardar completado en PocketBase
             guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records") else { return }
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
@@ -243,7 +267,7 @@ public final class PocketBaseManager: ObservableObject {
             let body: [String: Any] = [
                 "client": user.id,
                 "routine_day": dayId,
-                "completed_at": Date().formatted(.iso8601)
+                "completed_date": todayStr
             ]
             req.httpBody = try? JSONSerialization.data(withJSONObject: body)
             _ = try? await URLSession.shared.data(for: req)
@@ -266,7 +290,7 @@ public final class PocketBaseManager: ObservableObject {
         }
     }
     
-    public func uploadProgressMedia(fileData: Data, fileName: String, mimeType: String, notes: String) async -> Bool {
+    public func uploadProgressMedia(fileData: Data?, fileName: String, mimeType: String, notes: String) async -> Bool {
         guard let token = authToken, let user = currentUser else { return false }
         guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records") else { return false }
         
@@ -289,17 +313,19 @@ public final class PocketBaseManager: ObservableObject {
         body.append("\(notes)\r\n".data(using: .utf8)!)
         
         // Campo file_type
-        let isVideo = mimeType.contains("video")
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file_type\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(isVideo ? "video" : "image")\r\n".data(using: .utf8)!)
-        
-        // Campo file (binario)
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
-        body.append(fileData)
-        body.append("\r\n".data(using: .utf8)!)
+        if let data = fileData {
+            let isVideo = mimeType.contains("video")
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"file_type\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(isVideo ? "video" : "image")\r\n".data(using: .utf8)!)
+            
+            // Campo file (binario)
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+            body.append(data)
+            body.append("\r\n".data(using: .utf8)!)
+        }
         
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         req.httpBody = body

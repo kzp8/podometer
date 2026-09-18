@@ -25,7 +25,7 @@ struct AuraStepsApp: App {
                     .tag(0)
                 
                 if pocketBaseManager.isLoggedIn {
-                    GymDashboardView()
+                    GymClientMainView()
                         .tabItem {
                             Label("Gimnasio", systemImage: "dumbbell.fill")
                         }

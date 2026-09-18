@@ -1,95 +1,166 @@
 import SwiftUI
 
-/// Vista nativa para la visualización y ejecución interactiva de la rutina de entrenamiento del alumno.
+/// Vista nativa "Mi Rutina" que replica fielmente el diseño de la captura 2.
 @MainActor
 struct GymRoutineView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
     
     @State private var selectedDayIndex: Int = 0
-    @State private var showRestTimer: Bool = false
-    @State private var restSecondsRemaining: Int = 60
-    @State private var timerActive: Bool = false
-    
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var showLogModal: Bool = false
+    @State private var logText: String = ""
+    @State private var showHistoryModal: Bool = false
     
     var body: some View {
         NavigationStack {
             ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
+                Color(red: 0.04, green: 0.04, blue: 0.05).ignoresSafeArea()
                 
                 if pbManager.routineDays.isEmpty {
                     VStack(spacing: 16) {
-                        Image(systemName: "dumbbells.fill")
-                            .font(.system(size: 54))
-                            .foregroundColor(themeManager.accentColor.opacity(0.6))
-                        Text("No hay rutina cargada actualmente")
-                            .font(.headline)
+                        ZStack {
+                            Circle()
+                                .fill(Color.purple.opacity(0.2))
+                                .frame(width: 80, height: 80)
+                            Image(systemName: "dumbbell.fill")
+                                .font(.system(size: 36))
+                                .foregroundColor(.purple)
+                        }
+                        Text("Sin rutina asignada")
+                            .font(.title3)
+                            .fontWeight(.bold)
                             .foregroundColor(.white)
-                        Text("Pide a tu entrenador que te asigne una rutina desde PocketBase.")
+                        Text("Tu entrenador aún no te ha asignado una rutina activa.")
                             .font(.caption)
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
                     }
                 } else {
-                    VStack(spacing: 0) {
-                        // Selector de Días de Rutina (Día 1, Día 2, etc.)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(Array(pbManager.routineDays.enumerated()), id: \.offset) { index, day in
-                                    Button(action: {
-                                        let generator = UIImpactFeedbackGenerator(style: .light)
-                                        generator.impactOccurred()
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            selectedDayIndex = index
-                                        }
-                                    }) {
-                                        HStack(spacing: 6) {
-                                            let isCompleted = pbManager.completedDayIds.contains(day.id)
-                                            if isCompleted {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundColor(.emeraldGreen)
-                                            }
-                                            Text(day.title.isEmpty ? "Día \(index + 1)" : day.title)
-                                                .font(.subheadline)
-                                                .fontWeight(.bold)
-                                        }
-                                        .foregroundColor(selectedDayIndex == index ? .black : .white)
-                                        .padding(.vertical, 10)
-                                        .padding(.horizontal, 16)
-                                        .background(selectedDayIndex == index ? themeManager.accentColor : themeManager.cardColor)
-                                        .cornerRadius(14)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 12)
-                        }
-                        
-                        Divider().background(Color.white.opacity(0.1))
-                        
-                        // Detalle del día seleccionado
-                        if selectedDayIndex < pbManager.routineDays.count {
-                            let currentDay = pbManager.routineDays[selectedDayIndex]
-                            let isCompleted = pbManager.completedDayIds.contains(currentDay.id)
-                            
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 20) {
-                                    // Encabezado del Día
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(currentDay.title)
-                                                .font(.title2)
-                                                .fontWeight(.bold)
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // 1. Tarjeta Banner de la Rutina
+                            if let routine = pbManager.activeRoutine {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(alignment: .top, spacing: 14) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(LinearGradient(colors: [Color.purple, Color.indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                .frame(width: 48, height: 48)
+                                            Image(systemName: "dumbbell.fill")
+                                                .font(.title3)
                                                 .foregroundColor(.white)
-                                            Text("Día \(selectedDayIndex + 1) de tu plan")
-                                                .font(.caption)
-                                                .foregroundColor(.gray)
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(routine.name)
+                                                .font(.title3)
+                                                .fontWeight(.heavy)
+                                                .foregroundColor(.white)
+                                            
+                                            if let desc = routine.description, !desc.isEmpty {
+                                                Text(desc)
+                                                    .font(.caption)
+                                                    .foregroundColor(.gray)
+                                            }
                                         }
                                         Spacer()
+                                    }
+                                    
+                                    HStack(spacing: 16) {
+                                        Label("\(pbManager.routineDays.count) días / semana", systemImage: "calendar")
+                                        if let lvl = routine.level, !lvl.isEmpty {
+                                            Label(lvl, systemImage: "rosette")
+                                        }
+                                    }
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                                }
+                                .padding(18)
+                                .background(Color(red: 0.09, green: 0.07, blue: 0.12))
+                                .cornerRadius(20)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                                )
+                            }
+                            
+                            // 2. Selector Horizontal de Días (Full Body A, Full Body B, etc.)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(Array(pbManager.routineDays.enumerated()), id: \.offset) { index, day in
+                                        let isSelected = selectedDayIndex == index
+                                        let isDone = pbManager.completedDayIds.contains(day.id)
                                         
-                                        // Botón Completar Día
+                                        Button(action: {
+                                            let generator = UIImpactFeedbackGenerator(style: .light)
+                                            generator.impactOccurred()
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                selectedDayIndex = index
+                                            }
+                                        }) {
+                                            HStack(spacing: 6) {
+                                                if isDone {
+                                                    Image(systemName: "checkmark.circle.fill")
+                                                        .foregroundColor(isSelected ? .black : .emeraldGreen)
+                                                }
+                                                Text(day.day_name)
+                                                    .font(.subheadline)
+                                                    .fontWeight(.bold)
+                                            }
+                                            .foregroundColor(isSelected ? .black : .gray)
+                                            .padding(.vertical, 10)
+                                            .padding(.horizontal, 18)
+                                            .background(isSelected ? Color.purple : Color(red: 0.12, green: 0.12, blue: 0.14))
+                                            .cornerRadius(14)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 14)
+                                                    .stroke(isSelected ? Color.purple : Color.white.opacity(0.08), lineWidth: 1)
+                                            )
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+                            }
+                            
+                            // 3. Tarjeta de Detalle del Día Seleccionado
+                            if selectedDayIndex < pbManager.routineDays.count {
+                                let currentDay = pbManager.routineDays[selectedDayIndex]
+                                let isDoneToday = pbManager.completedDayIds.contains(currentDay.id)
+                                
+                                VStack(alignment: .leading, spacing: 16) {
+                                    // Encabezado del Día
+                                    HStack {
+                                        Text(currentDay.day_name.uppercased())
+                                            .font(.caption)
+                                            .fontWeight(.heavy)
+                                            .foregroundColor(.purple)
+                                            .tracking(1.5)
+                                        
+                                        Spacer()
+                                        
+                                        if isDoneToday {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                Text("Completado hoy")
+                                            }
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.emeraldGreen)
+                                        }
+                                    }
+                                    
+                                    Divider().background(Color.white.opacity(0.1))
+                                    
+                                    // Contenido de Ejercicios
+                                    Text(currentDay.content ?? "Sin contenido")
+                                        .font(.subheadline)
+                                        .foregroundColor(.white.opacity(0.9))
+                                        .lineSpacing(6)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    // Botones de Acción
+                                    VStack(spacing: 10) {
                                         Button(action: {
                                             let generator = UIImpactFeedbackGenerator(style: .medium)
                                             generator.impactOccurred()
@@ -97,127 +168,108 @@ struct GymRoutineView: View {
                                                 await pbManager.toggleDayCompletion(dayId: currentDay.id)
                                             }
                                         }) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: isCompleted ? "checkmark.seal.fill" : "circle")
-                                                Text(isCompleted ? "Completado" : "Marcar Hecho")
-                                                    .font(.caption)
+                                            HStack(spacing: 8) {
+                                                Image(systemName: isDoneToday ? "checkmark.circle.fill" : "target")
+                                                Text(isDoneToday ? "Completado — desmarcar" : "Marcar como completado hoy")
                                                     .fontWeight(.bold)
                                             }
-                                            .foregroundColor(isCompleted ? .black : themeManager.accentColor)
-                                            .padding(.vertical, 8)
-                                            .padding(.horizontal, 14)
-                                            .background(isCompleted ? themeManager.accentColor : themeManager.accentColor.opacity(0.15))
-                                            .cornerRadius(12)
-                                        }
-                                    }
-                                    
-                                    // Contenido de la rutina (Texto / Ejercicios)
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        Text("Ejercicios y Descripción:")
                                             .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(themeManager.accentColor)
-                                        
-                                        Text(currentDay.content ?? "Sin descripción para este día.")
-                                            .font(.body)
-                                            .foregroundColor(.white.opacity(0.9))
-                                            .lineSpacing(4)
-                                    }
-                                    .padding(18)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(themeManager.cardColor)
-                                    .cornerRadius(18)
-                                    
-                                    // Botón de Temporizador de Descanso
-                                    Button(action: {
-                                        restSecondsRemaining = 60
-                                        timerActive = true
-                                        showRestTimer = true
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "timer")
-                                            Text("Iniciar Temporizador de Descanso (60s)")
-                                                .fontWeight(.bold)
+                                            .foregroundColor(isDoneToday ? .emeraldGreen : .white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 14)
+                                            .background(isDoneToday ? Color.emeraldGreen.opacity(0.15) : Color.white.opacity(0.08))
+                                            .cornerRadius(14)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 14)
+                                                    .stroke(isDoneToday ? Color.emeraldGreen.opacity(0.3) : Color.white.opacity(0.12), lineWidth: 1)
+                                            )
                                         }
-                                        .foregroundColor(.black)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 14)
-                                        .background(themeManager.accentColor)
-                                        .cornerRadius(14)
+                                        
+                                        Button(action: {
+                                            logText = (currentDay.content ?? "")
+                                                .split(separator: "\n")
+                                                .map { String($0).trimmingCharacters(in: .whitespaces) + ": " }
+                                                .joined(separator: "\n\n")
+                                            showLogModal = true
+                                        }) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "doc.text.fill")
+                                                Text("Registrar cargas de hoy")
+                                                    .fontWeight(.bold)
+                                            }
+                                            .font(.subheadline)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 14)
+                                            .background(Color.white.opacity(0.08))
+                                            .cornerRadius(14)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 14)
+                                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                            )
+                                        }
+                                        
+                                        Button(action: {
+                                            showHistoryModal = true
+                                        }) {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: "clock.fill")
+                                                Text("Ver historial de cargas")
+                                                    .fontWeight(.semibold)
+                                            }
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 12)
+                                            .background(Color.white.opacity(0.03))
+                                            .cornerRadius(14)
+                                        }
                                     }
                                 }
-                                .padding()
+                                .padding(18)
+                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .cornerRadius(22)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
                             }
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 16)
                     }
                 }
             }
             .navigationTitle("Mi Rutina")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showRestTimer) {
+            .sheet(isPresented: $showLogModal) {
                 ZStack {
-                    themeManager.backgroundColor.ignoresSafeArea()
-                    
-                    VStack(spacing: 24) {
-                        Text("Descanso Activo")
-                            .font(.title3)
-                            .fontWeight(.bold)
+                    Color(red: 0.08, green: 0.08, blue: 0.10).ignoresSafeArea()
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Registrar cargas")
+                            .font(.headline)
                             .foregroundColor(.white)
                         
-                        ZStack {
-                            Circle()
-                                .stroke(Color.white.opacity(0.1), lineWidth: 12)
-                                .frame(width: 180, height: 180)
-                            
-                            Circle()
-                                .trim(from: 0, to: CGFloat(restSecondsRemaining) / 60.0)
-                                .stroke(themeManager.accentColor, lineWidth: 12)
-                                .frame(width: 180, height: 180)
-                                .rotationEffect(.degrees(-90))
-                            
-                            Text("\(restSecondsRemaining)s")
-                                .font(.system(size: 48, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        }
-                        
-                        HStack(spacing: 16) {
-                            Button("+30s") {
-                                restSecondsRemaining += 30
-                            }
+                        TextEditor(text: $logText)
+                            .padding(10)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(12)
                             .foregroundColor(.white)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 20)
-                            .background(themeManager.cardColor)
-                            .cornerRadius(12)
-                            
-                            Button("Cerrar") {
-                                showRestTimer = false
-                                timerActive = false
-                            }
-                            .foregroundColor(.black)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 24)
-                            .background(themeManager.accentColor)
-                            .cornerRadius(12)
+                        
+                        Button("Guardar Registro") {
+                            showLogModal = false
                         }
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.purple)
+                        .cornerRadius(14)
                     }
                     .padding()
                 }
-                .presentationDetents([.height(350)])
-                .onReceive(timer) { _ in
-                    if timerActive && restSecondsRemaining > 0 {
-                        restSecondsRemaining -= 1
-                        if restSecondsRemaining == 0 {
-                            timerActive = false
-                            UINotificationFeedbackGenerator().notificationOccurred(.success)
-                        }
-                    }
-                }
+                .presentationDetents([.medium])
             }
         }
     }
-}
-
-extension Color {
-    static let emeraldGreen = Color(red: 0.1, green: 0.8, blue: 0.4)
 }

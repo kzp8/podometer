@@ -1,7 +1,7 @@
 import SwiftUI
 import PhotosUI
 
-/// Vista nativa para grabar o seleccionar fotos y vídeos del carrete y subirlos al entrenador en PocketBase.
+/// Vista nativa "Subir Progreso" que replica fielmente el diseño de la captura 4.
 @MainActor
 struct GymProgressUploadView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
@@ -21,80 +21,125 @@ struct GymProgressUploadView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
+                Color(red: 0.04, green: 0.04, blue: 0.05).ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(spacing: 20) {
-                        // Selector de archivo / vista previa
-                        VStack(spacing: 12) {
-                            if let data = selectedData, !isVideo, let uiImage = UIImage(data: data) {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxHeight: 250)
-                                    .cornerRadius(16)
-                                    .shadow(radius: 8)
-                            } else if selectedData != nil && isVideo {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "video.fill")
-                                        .font(.system(size: 48))
-                                        .foregroundColor(themeManager.accentColor)
-                                    Text("Vídeo Seleccionado (\(fileName))")
-                                        .font(.caption)
-                                        .foregroundColor(.white)
-                                }
-                                .frame(height: 180)
-                                .frame(maxWidth: .infinity)
-                                .background(themeManager.cardColor)
-                                .cornerRadius(16)
-                            } else {
-                                PhotosPicker(selection: $selectedItem, matching: .any(of: [.images, .videos])) {
-                                    VStack(spacing: 12) {
-                                        Image(systemName: "camera.circle.fill")
-                                            .font(.system(size: 54))
-                                            .foregroundColor(themeManager.accentColor)
-                                        
-                                        Text("Seleccionar Foto o Vídeo")
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                        
-                                        Text("Formatos soportados: JPG, PNG, MP4, MOV (hasta 100MB)")
-                                            .font(.caption2)
-                                            .foregroundColor(.gray)
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Title & Subtitle
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Subir progreso")
+                                .font(.title)
+                                .fontWeight(.heavy)
+                                .foregroundColor(.white)
+                            Text("Comparte un vídeo o foto con tu entrenador")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // Dos tarjetas de acción lado a lado (Vídeo / Foto)
+                        HStack(spacing: 14) {
+                            // Tarjeta Vídeo
+                            PhotosPicker(selection: $selectedItem, matching: .videos) {
+                                VStack(spacing: 10) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: 56, height: 56)
+                                        Image(systemName: "video.fill")
+                                            .font(.title2)
+                                            .foregroundColor(.purple)
                                     }
-                                    .frame(height: 180)
-                                    .frame(maxWidth: .infinity)
-                                    .background(themeManager.cardColor)
-                                    .cornerRadius(18)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18)
-                                            .stroke(themeManager.accentColor.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                                    )
+                                    
+                                    Text("Vídeo")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                    
+                                    Text("de tu galería")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .cornerRadius(20)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(selectedData != nil && isVideo ? Color.purple : Color.white.opacity(0.08), lineWidth: selectedData != nil && isVideo ? 2 : 1)
+                                )
                             }
                             
-                            if selectedData != nil {
-                                PhotosPicker(selection: $selectedItem, matching: .any(of: [.images, .videos])) {
-                                    Label("Cambiar Archivo", systemImage: "arrow.triangle.2.circlepath")
-                                        .font(.caption)
-                                        .foregroundColor(themeManager.accentColor)
+                            // Tarjeta Foto
+                            PhotosPicker(selection: $selectedItem, matching: .images) {
+                                VStack(spacing: 10) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: 56, height: 56)
+                                        Image(systemName: "camera.fill")
+                                            .font(.title2)
+                                            .foregroundColor(.purple)
+                                    }
+                                    
+                                    Text("Foto")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                    
+                                    Text("o cámara")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .cornerRadius(20)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(selectedData != nil && !isVideo ? Color.purple : Color.white.opacity(0.08), lineWidth: selectedData != nil && !isVideo ? 2 : 1)
+                                )
                             }
                         }
-                        .padding(.top)
                         
-                        // Nota opcional para el entrenador
+                        // Vista Previa de Selección
+                        if let data = selectedData {
+                            HStack(spacing: 10) {
+                                Image(systemName: isVideo ? "video.circle.fill" : "photo.circle.fill")
+                                    .foregroundColor(.purple)
+                                Text("Archivo seleccionado: \(fileName)")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button("Quitar") {
+                                    selectedData = nil
+                                    selectedItem = nil
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                            }
+                            .padding(12)
+                            .background(Color.purple.opacity(0.12))
+                            .cornerRadius(12)
+                        }
+                        
+                        // Campo Nota / Mensaje
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Nota para tu entrenador:")
+                            Text("¿Cómo te has sentido? ¿Tienes alguna duda?")
                                 .font(.subheadline)
-                                .foregroundColor(.gray)
-                            
-                            TextField("Ej: Hoy me ha costado más la última serie de sentadillas...", text: $notesText, axis: .vertical)
-                                .lineLimit(3...6)
-                                .padding(14)
-                                .background(themeManager.cardColor)
-                                .cornerRadius(14)
+                                .fontWeight(.bold)
                                 .foregroundColor(.white)
+                            
+                            TextField("Ej: He mejorado mucho en la profundidad de la sentadilla. ¿Está bien el ángulo de la rodilla?", text: $notesText, axis: .vertical)
+                                .lineLimit(4...7)
+                                .padding(14)
+                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .cornerRadius(16)
+                                .foregroundColor(.white)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
                         }
                         
                         if let err = uploadError {
@@ -104,34 +149,42 @@ struct GymProgressUploadView: View {
                         }
                         
                         // Botón de Envío
-                        Button(action: {
-                            performUpload()
-                        }) {
-                            HStack {
-                                if isUploading {
-                                    ProgressView()
-                                        .tint(.black)
-                                    Text("Subiendo al servidor...")
-                                        .fontWeight(.bold)
-                                } else if uploadSuccess {
-                                    Image(systemName: "checkmark.circle.fill")
-                                    Text("¡Entregado con éxito!")
-                                        .fontWeight(.bold)
-                                } else {
-                                    Image(systemName: "paperplane.fill")
-                                    Text("Enviar Progreso a mi Entrenador")
-                                        .fontWeight(.bold)
+                        VStack(spacing: 8) {
+                            Button(action: {
+                                performUpload()
+                            }) {
+                                HStack(spacing: 8) {
+                                    if isUploading {
+                                        ProgressView().tint(.white)
+                                        Text("Enviando...")
+                                            .fontWeight(.bold)
+                                    } else if uploadSuccess {
+                                        Image(systemName: "checkmark.circle.fill")
+                                        Text("¡Enviado!")
+                                            .fontWeight(.bold)
+                                    } else {
+                                        Image(systemName: "paperplane.fill")
+                                        Text("Enviar")
+                                            .fontWeight(.bold)
+                                    }
                                 }
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(selectedData != nil || !notesText.isEmpty ? Color.purple : Color.white.opacity(0.08))
+                                .cornerRadius(16)
                             }
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(selectedData != nil && !isUploading ? themeManager.accentColor : Color.gray.opacity(0.4))
-                            .cornerRadius(16)
+                            .disabled(isUploading || (selectedData == nil && notesText.isEmpty))
+                            
+                            Text("Añade un archivo o escribe un mensaje")
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                                .frame(maxWidth: .infinity)
                         }
-                        .disabled(selectedData == nil || isUploading)
                     }
                     .padding(.horizontal)
+                    .padding(.vertical, 16)
                 }
             }
             .navigationTitle("Subir Progreso")
@@ -148,11 +201,10 @@ struct GymProgressUploadView: View {
                 Task {
                     if let data = try? await newItem?.loadTransferable(type: Data.self) {
                         self.selectedData = data
-                        // Detectar si es vídeo
                         if let mime = newItem?.supportedContentTypes.first?.preferredMIMEType {
                             self.mimeType = mime
                             self.isVideo = mime.contains("video")
-                            self.fileName = isVideo ? "progress_video.mp4" : "progress_photo.jpg"
+                            self.fileName = isVideo ? "video_progreso.mp4" : "foto_progreso.jpg"
                         }
                     }
                 }
@@ -161,13 +213,12 @@ struct GymProgressUploadView: View {
     }
     
     private func performUpload() {
-        guard let data = selectedData else { return }
         isUploading = true
         uploadError = nil
         
         Task { @MainActor in
             let success = await pbManager.uploadProgressMedia(
-                fileData: data,
+                fileData: selectedData,
                 fileName: fileName,
                 mimeType: mimeType,
                 notes: notesText
@@ -180,7 +231,7 @@ struct GymProgressUploadView: View {
                     dismiss()
                 }
             } else {
-                uploadError = "Error al subir el archivo. Verifica tu conexión con el servidor."
+                uploadError = "Error al enviar. Por favor comprueba tu conexión."
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
         }

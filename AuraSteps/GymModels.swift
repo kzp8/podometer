@@ -8,6 +8,7 @@ public struct GymUser: Identifiable, Codable, Sendable {
     public var full_name: String?
     public let role: String // "admin" o "client"
     public var avatar: String?
+    public var created: String?
     
     public var displayName: String {
         if let full = full_name, !full.isEmpty { return full }
@@ -15,28 +16,55 @@ public struct GymUser: Identifiable, Codable, Sendable {
         return email
     }
     
+    public var initials: String {
+        let parts = displayName.split(separator: " ")
+        if parts.count >= 2, let first = parts[0].first, let second = parts[1].first {
+            return "\(first)\(second)".uppercased()
+        } else if let first = displayName.first {
+            return "\(first)".uppercased()
+        }
+        return "U"
+    }
+    
+    public var formattedJoinedDate: String {
+        guard let dateStr = created else { return "" }
+        let clean = dateStr.replacingOccurrences(of: " ", with: "T")
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: clean) {
+            let out = DateFormatter()
+            out.locale = Locale(identifier: "es_ES")
+            out.dateFormat = "d MMM yyyy"
+            return out.string(from: date)
+        }
+        return String(dateStr.prefix(10))
+    }
+    
     public var isAdmin: Bool { role == "admin" }
     
-    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String = "client", avatar: String? = nil) {
+    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String = "client", avatar: String? = nil, created: String? = nil) {
         self.id = id
         self.email = email
         self.name = name
         self.full_name = full_name
         self.role = role
         self.avatar = avatar
+        self.created = created
     }
 }
 
 /// Modelo que representa una rutina de entrenamiento.
 public struct GymRoutine: Identifiable, Codable, Sendable {
     public let id: String
-    public let title: String
+    public let name: String
     public let description: String?
+    public let level: String?
     
-    public init(id: String, title: String, description: String? = nil) {
+    public init(id: String, name: String, description: String? = nil, level: String? = nil) {
         self.id = id
-        self.title = title
+        self.name = name
         self.description = description
+        self.level = level
     }
 }
 
@@ -44,15 +72,13 @@ public struct GymRoutine: Identifiable, Codable, Sendable {
 public struct GymRoutineDay: Identifiable, Codable, Sendable {
     public let id: String
     public let routine: String
-    public let day_number: Int?
-    public let title: String
-    public let content: String? // Texto libre o estructurado de la rutina
+    public let day_name: String
+    public let content: String?
     
-    public init(id: String, routine: String, day_number: Int? = nil, title: String, content: String? = nil) {
+    public init(id: String, routine: String, day_name: String, content: String? = nil) {
         self.id = id
         self.routine = routine
-        self.day_number = day_number
-        self.title = title
+        self.day_name = day_name
         self.content = content
     }
 }
@@ -62,13 +88,13 @@ public struct GymWorkoutCompletion: Identifiable, Codable, Sendable {
     public let id: String
     public let client: String
     public let routine_day: String
-    public let completed_at: String?
+    public let completed_date: String?
     
-    public init(id: String, client: String, routine_day: String, completed_at: String? = nil) {
+    public init(id: String, client: String, routine_day: String, completed_date: String? = nil) {
         self.id = id
         self.client = client
         self.routine_day = routine_day
-        self.completed_at = completed_at
+        self.completed_date = completed_date
     }
 }
 
