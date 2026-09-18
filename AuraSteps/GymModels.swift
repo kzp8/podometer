@@ -225,10 +225,11 @@ public struct ClientRoutineExpand: Codable, Sendable {
 }
 
 /// Modelo que representa una nota dejada por el entrenador para el cliente (client_notes).
-public struct GymClientNote: Identifiable, Codable, Sendable {
+public struct GymClientNote: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let client: String?
     public let content: String?
+    public let seen: Bool?
     public let created: String?
     
     public var formattedCreatedDate: String {
@@ -245,10 +246,11 @@ public struct GymClientNote: Identifiable, Codable, Sendable {
         return String(raw.prefix(16))
     }
     
-    public init(id: String, client: String? = nil, content: String? = nil, created: String? = nil) {
+    public init(id: String, client: String? = nil, content: String? = nil, seen: Bool? = nil, created: String? = nil) {
         self.id = id
         self.client = client
         self.content = content
+        self.seen = seen
         self.created = created
     }
 }

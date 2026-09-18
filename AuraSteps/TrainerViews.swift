@@ -852,7 +852,7 @@ struct TrainerClientDetailView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.gray)
                 Spacer()
-                if note.seen {
+                if note.seen == true {
                     HStack(spacing: 3) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 11))
