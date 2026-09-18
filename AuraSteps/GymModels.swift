@@ -1,7 +1,7 @@
 import Foundation
 
 /// Modelo que representa un usuario de PocketBase (Cliente o Entrenador Admin).
-public struct GymUser: Identifiable, Codable, Sendable {
+public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let email: String
     public var name: String?
@@ -63,7 +63,7 @@ public struct GymUser: Identifiable, Codable, Sendable {
 }
 
 /// Modelo que representa una rutina de entrenamiento.
-public struct GymRoutine: Identifiable, Codable, Sendable {
+public struct GymRoutine: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public var name: String
     public var description: String?
@@ -135,12 +135,12 @@ public struct GymWorkoutLog: Identifiable, Codable, Sendable {
 }
 
 /// Expansión para incluir datos del cliente en GymProgressUpload
-public struct GymProgressUploadExpand: Codable, Sendable {
+public struct GymProgressUploadExpand: Codable, Sendable, Hashable {
     public let client: GymUser?
 }
 
 /// Modelo que representa la subida de un vídeo o foto de progreso entregado al entrenador.
-public struct GymProgressUpload: Identifiable, Codable, Sendable {
+public struct GymProgressUpload: Identifiable, Codable, Sendable, Hashable {
     public let id: String
     public let client: String?
     public let file: String?

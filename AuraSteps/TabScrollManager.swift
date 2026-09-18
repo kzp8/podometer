@@ -7,6 +7,11 @@ public final class TabScrollManager: ObservableObject {
     @Published public var selectedTab: Int = 0
     @Published public var scrollEvent: TabScrollEvent? = nil
     
+    // Rutas de navegación independientes para las pestañas del entrenador
+    @Published public var clientsPath: NavigationPath = NavigationPath()
+    @Published public var galleryPath: NavigationPath = NavigationPath()
+    @Published public var routinesPath: NavigationPath = NavigationPath()
+    
     public struct TabScrollEvent: Equatable {
         public let tab: Int
         public let animated: Bool
@@ -20,15 +25,49 @@ public final class TabScrollManager: ObservableObject {
     public init() {}
     
     /// Cambia a la pestaña indicada.
-    /// Si ya estamos en ella, hace scroll suave arriba.
-    /// Si venimos de otra pestaña, reubica arriba inmediatamente para que al entrar se muestre la cabecera.
+    /// Al cambiar manualmente o volver a pulsar la pestaña activa, se reinicia la pila de navegación de esa pestaña a la raíz.
     public func selectTab(_ tab: Int) {
+        // Reiniciar la navegación de la pestaña seleccionada a su pantalla base
+        resetPathForTab(tab)
+        
         if selectedTab == tab {
             scrollEvent = TabScrollEvent(tab: tab, animated: true)
         } else {
             scrollEvent = TabScrollEvent(tab: tab, animated: false)
             selectedTab = tab
         }
+    }
+    
+    public func resetPathForTab(_ tab: Int) {
+        switch tab {
+        case 1:
+            clientsPath = NavigationPath()
+        case 2:
+            routinesPath = NavigationPath()
+        case 3:
+            galleryPath = NavigationPath()
+        default:
+            break
+        }
+    }
+    
+    /// Navega a la pestaña de Clientes y abre el detalle de un cliente específico.
+    public func navigateToClientInClientsTab(_ client: GymUser) {
+        var newPath = NavigationPath()
+        newPath.append(client)
+        clientsPath = newPath
+        selectedTab = 1 // Pestaña Clientes
+    }
+    
+    /// Navega a la pestaña de Galería, navegando primero al cliente y luego a la entrega de media concreta.
+    public func navigateToUploadInGalleryTab(_ upload: GymProgressUpload, client: GymUser?) {
+        var newPath = NavigationPath()
+        if let client = client {
+            newPath.append(client)
+        }
+        newPath.append(upload)
+        galleryPath = newPath
+        selectedTab = 3 // Pestaña Galería
     }
     
     public func requestScrollToTop(_ tab: Int, animated: Bool = true) {

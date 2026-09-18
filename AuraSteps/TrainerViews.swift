@@ -78,6 +78,9 @@ struct TrainerDashboardView: View {
     var onGoToGallery: () -> Void = {}
     var onGoToClients: () -> Void = {}
     
+    @State private var recentClientsLimit: Int = 3
+    @State private var recentUploadsLimit: Int = 3
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -271,8 +274,13 @@ struct TrainerDashboardView: View {
                     .background(Color.white.opacity(0.03))
                     .cornerRadius(14)
             } else {
-                ForEach(pbManager.trainerClients.prefix(3)) { client in
-                    NavigationLink(destination: TrainerClientDetailView(client: client)) {
+                let visibleClients = Array(pbManager.trainerClients.prefix(recentClientsLimit))
+                ForEach(visibleClients) { client in
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        tabScrollManager.navigateToClientInClientsTab(client)
+                    }) {
                         HStack(spacing: 12) {
                             ZStack {
                                 Circle()
@@ -312,6 +320,21 @@ struct TrainerDashboardView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                
+                if pbManager.trainerClients.count > recentClientsLimit {
+                    Button(action: { recentClientsLimit += 3 }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.down")
+                            Text("Ver más clientes (\(pbManager.trainerClients.count - recentClientsLimit) restantes)")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(12)
+                    }
+                }
             }
         }
     }
@@ -344,9 +367,15 @@ struct TrainerDashboardView: View {
                     .background(Color.white.opacity(0.03))
                     .cornerRadius(14)
             } else {
+                let visibleUploads = Array(pbManager.trainerUploads.prefix(recentUploadsLimit))
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(pbManager.trainerUploads.prefix(4)) { upload in
-                        NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
+                    ForEach(visibleUploads) { upload in
+                        Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            let targetClient = pbManager.trainerClients.first { $0.id == upload.client } ?? upload.expand?.client
+                            tabScrollManager.navigateToUploadInGalleryTab(upload, client: targetClient)
+                        }) {
                             VStack(alignment: .leading, spacing: 6) {
                                 ZStack(alignment: .topTrailing) {
                                     if let fileName = upload.file,
@@ -390,6 +419,21 @@ struct TrainerDashboardView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                
+                if pbManager.trainerUploads.count > recentUploadsLimit {
+                    Button(action: { recentUploadsLimit += 3 }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.down")
+                            Text("Ver más entregas (\(pbManager.trainerUploads.count - recentUploadsLimit) restantes)")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(12)
+                    }
+                }
             }
         }
     }
@@ -401,6 +445,7 @@ struct TrainerDashboardView: View {
 struct TrainerClientsView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     
     @State private var searchText: String = ""
     @State private var statusFilter: String = "Todos" // "Todos", "Activo", "Inactivo"
@@ -425,7 +470,7 @@ struct TrainerClientsView: View {
     }
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $tabScrollManager.clientsPath) {
             ZStack {
                 AppBackgroundView()
                 
@@ -503,7 +548,7 @@ struct TrainerClientsView: View {
                                     .padding(.top, 20)
                             } else {
                                 ForEach(filteredClients) { client in
-                                    NavigationLink(destination: TrainerClientDetailView(client: client)) {
+                                    NavigationLink(value: client) {
                                         HStack(spacing: 14) {
                                             ZStack {
                                                 Circle()
@@ -555,6 +600,9 @@ struct TrainerClientsView: View {
                 }
             }
             .navigationBarHidden(true)
+            .navigationDestination(for: GymUser.self) { client in
+                TrainerClientDetailView(client: client)
+            }
             .sheet(isPresented: $showNewClientSheet) {
                 TrainerCreateClientSheet()
             }
@@ -569,6 +617,7 @@ struct TrainerClientDetailView: View {
     let client: GymUser
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var clientUploads: [GymProgressUpload] = []
@@ -912,7 +961,11 @@ struct TrainerClientDetailView: View {
             } else {
                 let visibleUploads = Array(clientUploads.prefix(mediaLimit))
                 ForEach(visibleUploads) { upload in
-                    NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
+                    Button(action: {
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                        tabScrollManager.navigateToUploadInGalleryTab(upload, client: client)
+                    }) {
                         HStack(spacing: 12) {
                             if let fileName = upload.file,
                                let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
@@ -1155,6 +1208,7 @@ struct TrainerCreateClientSheet: View {
 struct TrainerRoutinesView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     
     @State private var searchText: String = ""
     @State private var showCreateRoutineSheet: Bool = false
@@ -1172,7 +1226,7 @@ struct TrainerRoutinesView: View {
     }
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $tabScrollManager.routinesPath) {
             ZStack {
                 AppBackgroundView()
                 
@@ -1633,11 +1687,34 @@ struct TrainerAddRoutineDaySheet: View {
 struct TrainerGalleryView: View {
     @EnvironmentObject var pbManager: PocketBaseManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
     
     @State private var filterState: String = "Todos" // "Todos", "Pendiente", "Visto"
     
-    var filteredUploads: [GymProgressUpload] {
-        pbManager.trainerUploads.filter { upload in
+    // Agrupar las entregas por cliente
+    var clientsWithUploads: [(client: GymUser, uploads: [GymProgressUpload])] {
+        let clients = pbManager.trainerClients
+        var result: [(client: GymUser, uploads: [GymProgressUpload])] = []
+        
+        for client in clients {
+            let clientUploads = pbManager.trainerUploads.filter { upload in
+                guard upload.client == client.id else { return false }
+                if filterState == "Pendiente" {
+                    return upload.seen_by_admin != true
+                } else if filterState == "Visto" {
+                    return upload.seen_by_admin == true
+                }
+                return true
+            }
+            if !clientUploads.isEmpty {
+                result.append((client: client, uploads: clientUploads))
+            }
+        }
+        
+        // Entregas de clientes no encontrados en la lista principal
+        let knownClientIds = Set(clients.map { $0.id })
+        let orphanUploads = pbManager.trainerUploads.filter { upload in
+            guard let cid = upload.client, !knownClientIds.contains(cid) else { return false }
             if filterState == "Pendiente" {
                 return upload.seen_by_admin != true
             } else if filterState == "Visto" {
@@ -1645,21 +1722,28 @@ struct TrainerGalleryView: View {
             }
             return true
         }
+        
+        if !orphanUploads.isEmpty {
+            let dummyUser = GymUser(id: orphanUploads.first?.client ?? "unknown", email: "alumno@gym.com", name: orphanUploads.first?.clientDisplayName ?? "Alumno")
+            result.append((client: dummyUser, uploads: orphanUploads))
+        }
+        
+        return result
     }
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $tabScrollManager.galleryPath) {
             ZStack {
                 AppBackgroundView()
                 
                 VStack(spacing: 0) {
-                    TrainerHeaderView(title: "Galería")
+                    TrainerHeaderView(title: "Galería por Cliente")
                     
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 18) {
                             // Cabecera
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Galería")
+                                Text("Galería por Alumno")
                                     .font(.system(size: 22, weight: .black))
                                     .foregroundColor(.white)
                                 Text("\(pbManager.pendingReviewsCount) pendientes de revisión")
@@ -1687,15 +1771,15 @@ struct TrainerGalleryView: View {
                                 }
                             }
                             
-                            // Lista de Entregas con Tarjeta Grande
-                            if filteredUploads.isEmpty {
-                                Text("No hay archivos en esta categoría.")
+                            // Lista de Clientes agrupados
+                            if clientsWithUploads.isEmpty {
+                                Text("No hay entregas en esta categoría.")
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                                     .padding(.top, 20)
                             } else {
-                                ForEach(filteredUploads) { upload in
-                                    trainerUploadCard(upload: upload)
+                                ForEach(clientsWithUploads, id: \.client.id) { item in
+                                    clientGalleryGroupCard(client: item.client, uploads: item.uploads)
                                 }
                             }
                         }
@@ -1709,33 +1793,221 @@ struct TrainerGalleryView: View {
                 }
             }
             .navigationBarHidden(true)
+            .navigationDestination(for: GymUser.self) { client in
+                TrainerClientGalleryView(client: client)
+            }
+            .navigationDestination(for: GymProgressUpload.self) { upload in
+                TrainerUploadDetailView(upload: upload)
+            }
         }
     }
     
-    // Tarjeta de la Galería
+    // Tarjeta del cliente agrupando sus entregas en la Galería
     @ViewBuilder
-    private func trainerUploadCard(upload: GymProgressUpload) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Media (Foto o Vídeo) con etiqueta "Nuevo"
-            ZStack(alignment: .topLeading) {
-                if let fileName = upload.file,
-                   let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
-                    NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
-                        if upload.isVideo {
-                            GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
-                                .frame(height: 200)
-                                .cornerRadius(14)
-                        } else {
-                            GymImageView(url: url, authToken: pbManager.authToken)
-                                .frame(height: 200)
-                                .cornerRadius(14)
-                                .clipped()
+    private func clientGalleryGroupCard(client: GymUser, uploads: [GymProgressUpload]) -> some View {
+        let pendingCount = uploads.filter { $0.seen_by_admin != true }.count
+        
+        VStack(alignment: .leading, spacing: 14) {
+            // Cabecera del Cliente
+            NavigationLink(value: client) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(themeManager.accentColor)
+                            .frame(width: 44, height: 44)
+                        Text(client.initials)
+                            .font(.system(size: 15, weight: .heavy))
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(client.displayName)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                        Text("\(uploads.count) entregas" + (pendingCount > 0 ? " • \(pendingCount) pendientes" : ""))
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        Text("Ver álbum")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(themeManager.accentColor)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(themeManager.accentColor)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            
+            // Miniaturas de las entregas de este cliente (máximo 4)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(uploads.prefix(4)) { upload in
+                    NavigationLink(value: upload) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ZStack(alignment: .topTrailing) {
+                                if let fileName = upload.file,
+                                   let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                                    if upload.isVideo {
+                                        GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                            .frame(height: 110)
+                                            .cornerRadius(12)
+                                    } else {
+                                        GymImageView(url: url, authToken: pbManager.authToken)
+                                            .frame(height: 110)
+                                            .cornerRadius(12)
+                                            .clipped()
+                                    }
+                                }
+                                
+                                if upload.seen_by_admin != true {
+                                    Text("Nuevo")
+                                        .font(.system(size: 10, weight: .black))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(themeManager.accentColor)
+                                        .cornerRadius(6)
+                                        .padding(6)
+                                }
+                            }
+                            
+                            Text(upload.formattedUploadDate)
+                                .font(.system(size: 10))
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 4)
                         }
+                        .padding(6)
+                        .background(Color.white.opacity(0.03))
+                        .cornerRadius(14)
                     }
                     .buttonStyle(.plain)
                 }
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+}
+
+// MARK: - Galería Individual de un Cliente
+
+@MainActor
+struct TrainerClientGalleryView: View {
+    let client: GymUser
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    @State private var filterState: String = "Todos" // "Todos", "Pendiente", "Visto"
+    
+    var clientUploads: [GymProgressUpload] {
+        pbManager.trainerUploads.filter { upload in
+            guard upload.client == client.id else { return false }
+            if filterState == "Pendiente" {
+                return upload.seen_by_admin != true
+            } else if filterState == "Visto" {
+                return upload.seen_by_admin == true
+            }
+            return true
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            AppBackgroundView()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Cabecera Cliente
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(themeManager.accentColor)
+                                .frame(width: 48, height: 48)
+                            Text(client.initials)
+                                .font(.system(size: 16, weight: .heavy))
+                                .foregroundColor(.white)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Galería de \(client.displayName)")
+                                .font(.system(size: 18, weight: .black))
+                                .foregroundColor(.white)
+                            Text("\(clientUploads.count) entregas en total")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(16)
+                    
+                    // Píldoras de filtro
+                    HStack(spacing: 8) {
+                        ForEach(["Todos", "Pendiente", "Visto"], id: \.self) { pill in
+                            let isSelected = filterState == pill
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                generator.impactOccurred()
+                                filterState = pill
+                            }) {
+                                Text(pill)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(isSelected ? .black : .white.opacity(0.8))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 7)
+                                    .background(isSelected ? themeManager.accentColor : Color.white.opacity(0.08))
+                                    .cornerRadius(20)
+                            }
+                        }
+                    }
+                    
+                    // Lista de entregas del cliente
+                    if clientUploads.isEmpty {
+                        Text("Este cliente no tiene entregas en esta categoría.")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                            .padding(.top, 20)
+                    } else {
+                        ForEach(clientUploads) { upload in
+                            NavigationLink(value: upload) {
+                                trainerUploadCard(upload: upload)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding()
+                .padding(.bottom, 60)
+            }
+        }
+        .navigationTitle(client.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    @ViewBuilder
+    private func trainerUploadCard(upload: GymProgressUpload) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack(alignment: .topLeading) {
+                if let fileName = upload.file,
+                   let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                    if upload.isVideo {
+                        GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                            .frame(height: 200)
+                            .cornerRadius(14)
+                    } else {
+                        GymImageView(url: url, authToken: pbManager.authToken)
+                            .frame(height: 200)
+                            .cornerRadius(14)
+                            .clipped()
+                    }
+                }
                 
-                // Etiqueta "Nuevo"
                 if upload.seen_by_admin != true {
                     Text("Nuevo")
                         .font(.system(size: 12, weight: .bold))
@@ -1748,38 +2020,21 @@ struct TrainerGalleryView: View {
                 }
             }
             
-            // Autor e info
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(themeManager.accentColor)
-                        .frame(width: 40, height: 40)
-                    Text(upload.clientInitials)
-                        .font(.system(size: 14, weight: .heavy))
-                        .foregroundColor(.white)
-                }
-                
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(upload.clientDisplayName)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
                     Text(upload.formattedUploadDate)
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                    if let note = upload.notes, !note.isEmpty {
+                        Text("\"\(note)\"")
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(2)
+                    }
                 }
-                
                 Spacer()
             }
             
-            // Nota del cliente si existe
-            if let note = upload.notes, !note.isEmpty {
-                Text(note)
-                    .font(.system(size: 14))
-                    .foregroundColor(.white.opacity(0.9))
-                    .padding(.horizontal, 4)
-            }
-            
-            // Botón "Marcar como visto"
             if upload.seen_by_admin != true {
                 Button(action: {
                     let generator = UIImpactFeedbackGenerator(style: .medium)

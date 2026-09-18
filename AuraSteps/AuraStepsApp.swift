@@ -84,6 +84,7 @@ struct AuraStepsApp: App {
             AppBackgroundView()
             
             tabsContent
+                .transition(.identity)
                 .animation(.easeInOut(duration: 0.22), value: tabScrollManager.selectedTab)
                 .safeAreaInset(edge: .bottom) {
                     CustomAnimatedTabBar(isLoggedIn: pocketBaseManager.isLoggedIn, isAdmin: pocketBaseManager.currentUser?.isAdmin == true)
@@ -97,9 +98,7 @@ struct AuraStepsApp: App {
                     await pocketBaseManager.checkTrainerUpdatesAndNotify()
                 }
             } else {
-                if tabScrollManager.selectedTab > 1 {
-                    tabScrollManager.selectTab(0)
-                }
+                tabScrollManager.selectTab(0)
             }
         }
         .onChange(of: scenePhase) { newPhase in
@@ -117,12 +116,18 @@ struct AuraStepsApp: App {
             if pocketBaseManager.isLoggedIn {
                 if pocketBaseManager.currentUser?.isAdmin == true {
                     trainerTabs
+                        .transition(.identity)
                 } else {
                     clientTabs
+                        .transition(.identity)
                 }
             } else {
                 loggedOutTabs
+                    .transition(.identity)
             }
+        }
+        .transaction { transaction in
+            transaction.animation = nil
         }
     }
     
