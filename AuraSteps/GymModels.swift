@@ -231,6 +231,20 @@ public struct GymClientNote: Identifiable, Codable, Sendable {
     public let content: String?
     public let created: String?
     
+    public var formattedCreatedDate: String {
+        guard let raw = created, !raw.isEmpty else { return "" }
+        let clean = raw.replacingOccurrences(of: " ", with: "T")
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: clean) {
+            let out = DateFormatter()
+            out.locale = Locale(identifier: "es_ES")
+            out.dateFormat = "d MMM, HH:mm"
+            return out.string(from: date)
+        }
+        return String(raw.prefix(16))
+    }
+    
     public init(id: String, client: String? = nil, content: String? = nil, created: String? = nil) {
         self.id = id
         self.client = client

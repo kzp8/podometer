@@ -1149,6 +1149,51 @@ public final class PocketBaseManager: ObservableObject {
         }
         return false
     }
+    
+    public func fetchNotesForClient(clientId: String) async -> [GymClientNote] {
+        guard let token = authToken else { return [] }
+        let filterStr = "client = \"\(clientId)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)&sort=-created") else { return [] }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: request),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymClientNote>.self, from: data) {
+            return listResp.items
+        }
+        return []
+    }
+    
+    public func fetchActiveRoutineForClient(clientId: String) async -> GymRoutine? {
+        guard let token = authToken else { return nil }
+        let filterStr = "client = \"\(clientId)\" && active = true".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&expand=routine") else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: request),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<ClientRoutineRecord>.self, from: data),
+           let first = listResp.items.first {
+            if let routine = first.expand?.routine {
+                return routine
+            } else {
+                let rId = first.routine
+                guard let rUrl = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(rId)") else { return nil }
+                var rReq = URLRequest(url: rUrl)
+                rReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                if let (rData, rResp) = try? await URLSession.shared.data(for: rReq),
+                   let rHttpResp = rResp as? HTTPURLResponse, (200...299).contains(rHttpResp.statusCode),
+                   let routine = try? JSONDecoder().decode(GymRoutine.self, from: rData) {
+                    return routine
+                }
+            }
+        }
+        return nil
+    }
 }
 
 // MARK: - Extensiones de Apoyo

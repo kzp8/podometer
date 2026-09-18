@@ -13,11 +13,11 @@ struct TrainerHeaderView: View {
             // Icono / Logo con resplandor
             ZStack {
                 Circle()
-                    .fill(Color(hex: "7C3AED").opacity(0.2))
+                    .fill(themeManager.accentColor.opacity(0.2))
                     .frame(width: 40, height: 40)
                 Image(systemName: "flame.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(Color(hex: "A78BFA"))
+                    .foregroundColor(themeManager.accentColor)
             }
             
             Text(title)
@@ -30,7 +30,7 @@ struct TrainerHeaderView: View {
             HStack(spacing: 6) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: "7C3AED"))
+                        .fill(themeManager.accentColor)
                         .frame(width: 26, height: 26)
                     Text(pbManager.currentUser?.initials.prefix(1).uppercased() ?? "A")
                         .font(.system(size: 13, weight: .heavy))
@@ -123,7 +123,7 @@ struct TrainerDashboardView: View {
                     Text("Buenos días, \(pbManager.currentUser?.displayName ?? "Admin")")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "C4B5FD"))
+                        .foregroundColor(themeManager.accentColor)
                     Text("👋")
                 }
                 
@@ -146,17 +146,17 @@ struct TrainerDashboardView: View {
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(Color(hex: "A78BFA"))
+                .background(themeManager.accentColor)
                 .cornerRadius(12)
             }
         }
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 18)
-                .fill(Color(hex: "1F1735").opacity(0.85))
+                .fill(Color.white.opacity(0.04))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color(hex: "7C3AED").opacity(0.3), lineWidth: 1)
+                        .stroke(themeManager.accentColor.opacity(0.3), lineWidth: 1)
                 )
         )
     }
@@ -175,8 +175,8 @@ struct TrainerDashboardView: View {
             // Tarjeta 1: Clientes Activos
             metricCard(
                 icon: "person.2.fill",
-                iconColor: Color(hex: "A78BFA"),
-                iconBg: Color(hex: "7C3AED").opacity(0.3),
+                iconColor: themeManager.accentColor,
+                iconBg: themeManager.accentColor.opacity(0.3),
                 value: "\(activeClients)",
                 title: "Clientes activos",
                 subtitle: "\(totalClients) total"
@@ -195,8 +195,8 @@ struct TrainerDashboardView: View {
             // Tarjeta 3: Vídeos recibidos
             metricCard(
                 icon: "video.fill",
-                iconColor: Color(hex: "C084FC"),
-                iconBg: Color(hex: "9333EA").opacity(0.3),
+                iconColor: themeManager.accentColor,
+                iconBg: themeManager.accentColor.opacity(0.3),
                 value: "\(totalVideos)",
                 title: "Vídeos recibidos",
                 subtitle: "\(pendingVideos) pendientes"
@@ -258,7 +258,7 @@ struct TrainerDashboardView: View {
                         Image(systemName: "chevron.right")
                     }
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color(hex: "C4B5FD"))
+                    .foregroundColor(themeManager.accentColor)
                 }
             }
             
@@ -276,7 +276,7 @@ struct TrainerDashboardView: View {
                         HStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(hex: "2563EB"))
+                                    .fill(themeManager.accentColor)
                                     .frame(width: 44, height: 44)
                                 Text(client.initials)
                                     .font(.system(size: 15, weight: .heavy))
@@ -331,7 +331,7 @@ struct TrainerDashboardView: View {
                         Image(systemName: "chevron.right")
                     }
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color(hex: "C4B5FD"))
+                    .foregroundColor(themeManager.accentColor)
                 }
             }
             
@@ -363,10 +363,10 @@ struct TrainerDashboardView: View {
                                         }
                                     }
                                     
-                                    // Punto morado indicador de nuevo
+                                    // Punto indicador de nuevo
                                     if upload.seen_by_admin != true {
                                         Circle()
-                                            .fill(Color(hex: "A78BFA"))
+                                            .fill(themeManager.accentColor)
                                             .frame(width: 8, height: 8)
                                             .padding(6)
                                     }
@@ -458,7 +458,7 @@ struct TrainerClientsView: View {
                                     .foregroundColor(.black)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .background(Color(hex: "A78BFA"))
+                                    .background(themeManager.accentColor)
                                     .cornerRadius(12)
                                 }
                             }
@@ -489,7 +489,7 @@ struct TrainerClientsView: View {
                                             .foregroundColor(isSelected ? .black : .white.opacity(0.8))
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 7)
-                                            .background(isSelected ? Color(hex: "A78BFA") : Color.white.opacity(0.08))
+                                            .background(isSelected ? themeManager.accentColor : Color.white.opacity(0.08))
                                             .cornerRadius(20)
                                     }
                                 }
@@ -507,7 +507,7 @@ struct TrainerClientsView: View {
                                         HStack(spacing: 14) {
                                             ZStack {
                                                 Circle()
-                                                    .fill(Color(hex: "2563EB"))
+                                                    .fill(themeManager.accentColor)
                                                     .frame(width: 48, height: 48)
                                                 Text(client.initials)
                                                     .font(.system(size: 16, weight: .heavy))
@@ -573,6 +573,13 @@ struct TrainerClientDetailView: View {
     
     @State private var clientUploads: [GymProgressUpload] = []
     @State private var clientNotesList: [GymClientNote] = []
+    @State private var activeRoutine: GymRoutine? = nil
+    @State private var isLoadingActiveRoutine: Bool = true
+    @State private var isLoadingNotes: Bool = true
+    
+    @State private var notesLimit: Int = 3
+    @State private var mediaLimit: Int = 3
+    
     @State private var newNoteText: String = ""
     @State private var isSendingNote: Bool = false
     @State private var selectedRoutineToAssign: String = ""
@@ -587,171 +594,22 @@ struct TrainerClientDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Tarjeta Principal del Cliente
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(hex: "2563EB"))
-                                .frame(width: 60, height: 60)
-                            Text(client.initials)
-                                .font(.system(size: 20, weight: .heavy))
-                                .foregroundColor(.white)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(client.displayName)
-                                .font(.system(size: 20, weight: .heavy))
-                                .foregroundColor(.white)
-                            Text(client.email)
-                                .font(.system(size: 13))
-                                .foregroundColor(.gray)
-                            Text("Registrado: \(client.formattedJoinedDate)")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.6))
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(18)
+                    clientHeaderCard
                     
-                    // Asignar Rutina a este Cliente
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Asignar Rutina")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        if pbManager.trainerRoutines.isEmpty {
-                            Text("No tienes rutinas creadas todavía para asignar.")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        } else {
-                            HStack {
-                                Picker("Seleccionar Rutina", selection: $selectedRoutineToAssign) {
-                                    Text("Seleccionar Rutina...").tag("")
-                                    ForEach(pbManager.trainerRoutines) { r in
-                                        Text(r.name).tag(r.id)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .tint(Color(hex: "A78BFA"))
-                                .padding(8)
-                                .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
-                                
-                                Button(action: assignRoutine) {
-                                    if isAssigningRoutine {
-                                        ProgressView().tint(.black)
-                                    } else {
-                                        Text("Asignar")
-                                            .font(.system(size: 13, weight: .bold))
-                                            .foregroundColor(.black)
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color(hex: "A78BFA"))
-                                .cornerRadius(12)
-                                .disabled(selectedRoutineToAssign.isEmpty || isAssigningRoutine)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(18)
+                    // Rutina Asignada Actual
+                    activeRoutineCard
+                    
+                    // Asignar / Cambiar Rutina a este Cliente
+                    assignRoutineCard
                     
                     // Dejar Nota / Feedback
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Dejar Nota al Cliente")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        TextField("Ej: Muy buena técnica en peso muerto...", text: $newNoteText, axis: .vertical)
-                            .lineLimit(3...5)
-                            .padding(12)
-                            .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
-                            .foregroundColor(.white)
-                        
-                        Button(action: sendNote) {
-                            HStack {
-                                if isSendingNote {
-                                    ProgressView().tint(.black)
-                                } else {
-                                    Image(systemName: "paperplane.fill")
-                                    Text("Enviar Nota")
-                                        .fontWeight(.bold)
-                                }
-                            }
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color(hex: "A78BFA"))
-                            .cornerRadius(12)
-                        }
-                        .disabled(newNoteText.trimmingCharacters(in: .whitespaces).isEmpty || isSendingNote)
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(18)
+                    leaveNoteCard
                     
-                    // Archivos de Progreso de este Cliente
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Entregas de este cliente (\(clientUploads.count))")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundColor(.white)
-                        
-                        if clientUploads.isEmpty {
-                            Text("Este cliente aún no ha subido fotos ni vídeos.")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        } else {
-                            ForEach(clientUploads) { upload in
-                                NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
-                                    HStack(spacing: 12) {
-                                        if let fileName = upload.file,
-                                           let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
-                                            if upload.isVideo {
-                                                GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
-                                                    .frame(width: 80, height: 60)
-                                                    .cornerRadius(8)
-                                            } else {
-                                                GymImageView(url: url, authToken: pbManager.authToken)
-                                                    .frame(width: 80, height: 60)
-                                                    .cornerRadius(8)
-                                            }
-                                        }
-                                        
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(upload.note ?? "Sin comentario")
-                                                .font(.system(size: 14, weight: .bold))
-                                                .foregroundColor(.white)
-                                                .lineLimit(1)
-                                            Text(upload.formattedUploadDate)
-                                                .font(.system(size: 11))
-                                                .foregroundColor(.gray)
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        Text(upload.seen_by_admin == true ? "Visto" : "Nuevo")
-                                            .font(.system(size: 11, weight: .bold))
-                                            .foregroundColor(upload.seen_by_admin == true ? .gray : Color(hex: "A78BFA"))
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.white.opacity(0.06))
-                                            .cornerRadius(8)
-                                    }
-                                    .padding(10)
-                                    .background(Color.white.opacity(0.03))
-                                    .cornerRadius(12)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(18)
+                    // Historial de Notas del Cliente
+                    clientNotesSection
+                    
+                    // Entregas de Media de este Cliente
+                    clientUploadsSection
                 }
                 .padding()
                 .padding(.bottom, 60)
@@ -760,7 +618,7 @@ struct TrainerClientDetailView: View {
         .navigationTitle(client.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            loadClientData()
+            await loadClientData()
         }
         .alert("Aviso", isPresented: $showAlert) {
             Button("Aceptar", role: .cancel) {}
@@ -769,18 +627,385 @@ struct TrainerClientDetailView: View {
         }
     }
     
-    private func loadClientData() {
+    // MARK: - Subviews
+    
+    @ViewBuilder
+    private var clientHeaderCard: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(themeManager.accentColor)
+                    .frame(width: 60, height: 60)
+                Text(client.initials)
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundColor(.white)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(client.displayName)
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundColor(.white)
+                Text(client.email)
+                    .font(.system(size: 13))
+                    .foregroundColor(.gray)
+                Text("Registrado: \(client.formattedJoinedDate)")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    @ViewBuilder
+    private var activeRoutineCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "dumbbell.fill")
+                    .foregroundColor(themeManager.accentColor)
+                Text("Rutina Actual Asignada")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            
+            if isLoadingActiveRoutine {
+                HStack {
+                    Spacer()
+                    ProgressView().tint(.white)
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            } else if let routine = activeRoutine {
+                NavigationLink(destination: TrainerRoutineDetailView(routine: routine)) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(themeManager.accentColor)
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(routine.name)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                            if let desc = routine.description, !desc.isEmpty {
+                                Text(desc)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                                    .lineLimit(1)
+                            }
+                            HStack(spacing: 6) {
+                                Text(routine.level ?? "General")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(themeManager.accentColor)
+                                Text("•")
+                                    .foregroundColor(.gray)
+                                Text("\(routine.daysCount ?? 0) días")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.gray.opacity(0.6))
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(14)
+                }
+                .buttonStyle(.plain)
+            } else {
+                HStack {
+                    Text("Este alumno no tiene ninguna rutina activa asignada.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.03))
+                .cornerRadius(12)
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    @ViewBuilder
+    private var assignRoutineCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Asignar / Cambiar Rutina")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            
+            if pbManager.trainerRoutines.isEmpty {
+                Text("No tienes rutinas creadas todavía para asignar.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            } else {
+                VStack(spacing: 10) {
+                    Picker("Seleccionar Rutina", selection: $selectedRoutineToAssign) {
+                        Text("Seleccionar Rutina...").tag("")
+                        ForEach(pbManager.trainerRoutines) { r in
+                            Text(r.name).tag(r.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(themeManager.accentColor)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(12)
+                    
+                    Button(action: assignRoutine) {
+                        HStack {
+                            if isAssigningRoutine {
+                                ProgressView().tint(.black)
+                            } else {
+                                Text("Asignar Rutina")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.black)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(themeManager.accentColor)
+                        .cornerRadius(12)
+                    }
+                    .disabled(selectedRoutineToAssign.isEmpty || isAssigningRoutine)
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    @ViewBuilder
+    private var leaveNoteCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Dejar Nota al Cliente")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            
+            TextField("Ej: Muy buena técnica en peso muerto...", text: $newNoteText, axis: .vertical)
+                .lineLimit(3...5)
+                .padding(12)
+                .background(Color.white.opacity(0.06))
+                .cornerRadius(12)
+                .foregroundColor(.white)
+            
+            Button(action: sendNote) {
+                HStack {
+                    if isSendingNote {
+                        ProgressView().tint(.black)
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                        Text("Enviar Nota")
+                            .fontWeight(.bold)
+                    }
+                }
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(themeManager.accentColor)
+                .cornerRadius(12)
+            }
+            .disabled(newNoteText.trimmingCharacters(in: .whitespaces).isEmpty || isSendingNote)
+        }
+        .padding()
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    @ViewBuilder
+    private var clientNotesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Notas del Cliente (\(clientNotesList.count))")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            
+            if isLoadingNotes {
+                HStack {
+                    Spacer()
+                    ProgressView().tint(.white)
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            } else if clientNotesList.isEmpty {
+                Text("Aún no le has enviado notas a este cliente.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            } else {
+                let visibleNotes = Array(clientNotesList.prefix(notesLimit))
+                ForEach(visibleNotes) { note in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(note.content)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.9))
+                        
+                        HStack {
+                            Text(note.formattedCreatedDate)
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                            Spacer()
+                            if note.seen {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.green)
+                                    Text("Leída por cliente")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.03))
+                    .cornerRadius(12)
+                }
+                
+                if clientNotesList.count > notesLimit {
+                    Button(action: { notesLimit += 3 }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.down")
+                            Text("Ver más notas (\(clientNotesList.count - notesLimit) restantes)")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(12)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    @ViewBuilder
+    private var clientUploadsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Entregas de este cliente (\(clientUploads.count))")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            
+            if clientUploads.isEmpty {
+                Text("Este cliente aún no ha subido fotos ni vídeos.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            } else {
+                let visibleUploads = Array(clientUploads.prefix(mediaLimit))
+                ForEach(visibleUploads) { upload in
+                    NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
+                        HStack(spacing: 12) {
+                            if let fileName = upload.file,
+                               let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                                if upload.isVideo {
+                                    GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                        .frame(width: 80, height: 60)
+                                        .cornerRadius(8)
+                                } else {
+                                    GymImageView(url: url, authToken: pbManager.authToken)
+                                        .frame(width: 80, height: 60)
+                                        .cornerRadius(8)
+                                        .clipped()
+                                }
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(upload.note ?? "Sin comentario")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                Text(upload.formattedUploadDate)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            Text(upload.seen_by_admin == true ? "Visto" : "Nuevo")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(upload.seen_by_admin == true ? .gray : themeManager.accentColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(8)
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(0.03))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                if clientUploads.count > mediaLimit {
+                    Button(action: { mediaLimit += 3 }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.down")
+                            Text("Ver más entregas (\(clientUploads.count - mediaLimit) restantes)")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(12)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    // MARK: - Actions
+    
+    private func loadClientData() async {
+        if pbManager.trainerRoutines.isEmpty {
+            _ = await pbManager.fetchTrainerRoutines()
+        }
+        
         self.clientUploads = pbManager.trainerUploads.filter { $0.client == client.id }
+        
+        // Cargar rutina activa del cliente
+        self.isLoadingActiveRoutine = true
+        self.activeRoutine = await pbManager.fetchActiveRoutineForClient(clientId: client.id)
+        self.isLoadingActiveRoutine = false
+        
+        // Cargar notas del cliente
+        self.isLoadingNotes = true
+        self.clientNotesList = await pbManager.fetchNotesForClient(clientId: client.id)
+        self.isLoadingNotes = false
     }
     
     private func sendNote() {
         isSendingNote = true
         Task {
             let ok = await pbManager.sendNoteToClient(clientId: client.id, content: newNoteText)
+            let freshNotes = await pbManager.fetchNotesForClient(clientId: client.id)
             await MainActor.run {
                 isSendingNote = false
                 if ok {
                     newNoteText = ""
+                    clientNotesList = freshNotes
                     alertMessage = "Nota enviada al cliente con éxito."
                     showAlert = true
                 } else {
@@ -796,9 +1021,11 @@ struct TrainerClientDetailView: View {
         isAssigningRoutine = true
         Task {
             let ok = await pbManager.assignRoutineToClient(clientId: client.id, routineId: selectedRoutineToAssign)
+            let updatedRoutine = await pbManager.fetchActiveRoutineForClient(clientId: client.id)
             await MainActor.run {
                 isAssigningRoutine = false
                 if ok {
+                    activeRoutine = updatedRoutine
                     alertMessage = "Rutina asignada correctamente."
                     showAlert = true
                 } else {
@@ -888,7 +1115,7 @@ struct TrainerCreateClientSheet: View {
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color(hex: "A78BFA"))
+                        .background(themeManager.accentColor)
                         .cornerRadius(14)
                     }
                     .disabled(name.isEmpty || email.isEmpty || password.count < 8 || isCreating)
@@ -978,7 +1205,7 @@ struct TrainerRoutinesView: View {
                                     .foregroundColor(.black)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .background(Color(hex: "A78BFA"))
+                                    .background(themeManager.accentColor)
                                     .cornerRadius(12)
                                 }
                             }
@@ -1006,7 +1233,7 @@ struct TrainerRoutinesView: View {
                                         HStack(spacing: 14) {
                                             ZStack {
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .fill(Color(hex: "7C3AED"))
+                                                    .fill(themeManager.accentColor)
                                                     .frame(width: 48, height: 48)
                                                 Image(systemName: "dumbbell.fill")
                                                     .font(.system(size: 18))
@@ -1092,6 +1319,7 @@ struct TrainerRoutinesView: View {
 struct TrainerRoutineDetailView: View {
     let routine: GymRoutine
     @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var days: [GymRoutineDay] = []
     @State private var isLoading: Bool = true
     @State private var showAddDaySheet: Bool = false
@@ -1118,7 +1346,7 @@ struct TrainerRoutineDetailView: View {
                                 .foregroundColor(.black)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(Color(hex: "A78BFA"))
+                                .background(themeManager.accentColor)
                                 .cornerRadius(8)
                             Text("\(days.count) días configurados")
                                 .font(.system(size: 12))
@@ -1145,7 +1373,7 @@ struct TrainerRoutineDetailView: View {
                             .foregroundColor(.black)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color(hex: "A78BFA"))
+                            .background(themeManager.accentColor)
                             .cornerRadius(10)
                         }
                     }
@@ -1162,7 +1390,7 @@ struct TrainerRoutineDetailView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(day.title)
                                     .font(.system(size: 16, weight: .heavy))
-                                    .foregroundColor(Color(hex: "C4B5FD"))
+                                    .foregroundColor(themeManager.accentColor)
                                 
                                 if let content = day.content, !content.isEmpty {
                                     Text(content)
@@ -1210,6 +1438,7 @@ struct TrainerRoutineDetailView: View {
 @MainActor
 struct TrainerCreateRoutineSheet: View {
     @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var name: String = ""
@@ -1276,7 +1505,7 @@ struct TrainerCreateRoutineSheet: View {
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color(hex: "A78BFA"))
+                        .background(themeManager.accentColor)
                         .cornerRadius(14)
                     }
                     .disabled(name.isEmpty || isCreating)
@@ -1312,6 +1541,7 @@ struct TrainerAddRoutineDaySheet: View {
     let routineId: String
     var onSaved: () -> Void = {}
     @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var dayName: String = ""
@@ -1365,7 +1595,7 @@ struct TrainerAddRoutineDaySheet: View {
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color(hex: "A78BFA"))
+                        .background(themeManager.accentColor)
                         .cornerRadius(14)
                     }
                     .disabled(dayName.isEmpty || isSaving)
@@ -1451,7 +1681,7 @@ struct TrainerGalleryView: View {
                                             .foregroundColor(isSelected ? .black : .white.opacity(0.8))
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 7)
-                                            .background(isSelected ? Color(hex: "A78BFA") : Color.white.opacity(0.08))
+                                            .background(isSelected ? themeManager.accentColor : Color.white.opacity(0.08))
                                             .cornerRadius(20)
                                     }
                                 }
@@ -1482,7 +1712,7 @@ struct TrainerGalleryView: View {
         }
     }
     
-    // Tarjeta de la Galería tal cual la captura 4
+    // Tarjeta de la Galería
     @ViewBuilder
     private func trainerUploadCard(upload: GymProgressUpload) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1505,14 +1735,14 @@ struct TrainerGalleryView: View {
                     .buttonStyle(.plain)
                 }
                 
-                // Etiqueta morada "Nuevo"
+                // Etiqueta "Nuevo"
                 if upload.seen_by_admin != true {
                     Text("Nuevo")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.black)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(Color(hex: "A78BFA"))
+                        .background(themeManager.accentColor)
                         .cornerRadius(8)
                         .padding(10)
                 }
@@ -1522,7 +1752,7 @@ struct TrainerGalleryView: View {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: "2563EB"))
+                        .fill(themeManager.accentColor)
                         .frame(width: 40, height: 40)
                     Text(upload.clientInitials)
                         .font(.system(size: 14, weight: .heavy))
@@ -1564,14 +1794,14 @@ struct TrainerGalleryView: View {
                             .fontWeight(.bold)
                     }
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Color(hex: "C4B5FD"))
+                    .foregroundColor(themeManager.accentColor)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(Color(hex: "7C3AED").opacity(0.2))
+                    .background(themeManager.accentColor.opacity(0.2))
                     .cornerRadius(12)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(hex: "7C3AED").opacity(0.4), lineWidth: 1)
+                            .stroke(themeManager.accentColor.opacity(0.4), lineWidth: 1)
                     )
                 }
             } else {
@@ -1597,11 +1827,13 @@ struct TrainerGalleryView: View {
 struct TrainerUploadDetailView: View {
     let upload: GymProgressUpload
     @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var feedbackText: String = ""
     @State private var isSendingFeedback: Bool = false
     @State private var feedbackSentSuccess: Bool = false
+    @State private var isPresentingMediaViewer: Bool = false
     
     var body: some View {
         ZStack {
@@ -1609,25 +1841,47 @@ struct TrainerUploadDetailView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    // Visor de foto o vídeo
+                    // Visor de foto o vídeo (al pulsar se abre el visor modal en pantalla completa)
                     if let fileName = upload.file,
                        let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
-                        if upload.isVideo {
-                            FullScreenVideoPlayer(url: url, authToken: pbManager.authToken)
-                                .frame(height: 320)
-                                .cornerRadius(16)
-                        } else {
-                            GymImageView(url: url, authToken: pbManager.authToken)
-                                .frame(maxHeight: 320)
-                                .cornerRadius(16)
+                        Button(action: {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            isPresentingMediaViewer = true
+                        }) {
+                            ZStack(alignment: .bottomTrailing) {
+                                if upload.isVideo {
+                                    GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                        .frame(height: 320)
+                                        .cornerRadius(16)
+                                } else {
+                                    GymImageView(url: url, authToken: pbManager.authToken)
+                                        .frame(maxHeight: 320)
+                                        .cornerRadius(16)
+                                        .clipped()
+                                }
+                                
+                                HStack(spacing: 5) {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    Text("Ver en grande")
+                                }
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.black.opacity(0.7))
+                                .cornerRadius(8)
+                                .padding(10)
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
                     
                     // Datos del cliente
                     HStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(Color(hex: "2563EB"))
+                                .fill(themeManager.accentColor)
                                 .frame(width: 48, height: 48)
                             Text(upload.clientInitials)
                                 .font(.system(size: 16, weight: .heavy))
@@ -1667,7 +1921,7 @@ struct TrainerUploadDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Tu Feedback / Corrección:")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(Color(hex: "C4B5FD"))
+                            .foregroundColor(themeManager.accentColor)
                         
                         if let prevResp = upload.admin_response, !prevResp.isEmpty {
                             Text("Feedback anterior: \(prevResp)")
@@ -1695,7 +1949,7 @@ struct TrainerUploadDetailView: View {
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .background(Color(hex: "A78BFA"))
+                            .background(themeManager.accentColor)
                             .cornerRadius(12)
                         }
                         .disabled(feedbackText.trimmingCharacters(in: .whitespaces).isEmpty || isSendingFeedback)
@@ -1716,6 +1970,9 @@ struct TrainerUploadDetailView: View {
         }
         .navigationTitle("Revisión de Entrega")
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $isPresentingMediaViewer) {
+            GymMediaViewerModal(item: upload)
+        }
         .onAppear {
             if let existing = upload.admin_response {
                 feedbackText = existing

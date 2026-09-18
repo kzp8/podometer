@@ -259,7 +259,7 @@ struct CustomAnimatedTabBar: View {
     @ViewBuilder
     private func tabButton(for tab: TabItemData) -> some View {
         let isSelected = tabScrollManager.selectedTab == tab.tag
-        let activeColor = isAdmin ? Color(hex: "C4B5FD") : themeManager.accentColor
+        let activeColor = themeManager.accentColor
         
         Button(action: {
             let generator = UIImpactFeedbackGenerator(style: .light)
@@ -287,7 +287,7 @@ struct CustomAnimatedTabBar: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
-                            .background(Color(hex: "7C3AED"))
+                            .background(themeManager.accentColor)
                             .clipShape(Capsule())
                             .offset(x: 10, y: -6)
                     }
