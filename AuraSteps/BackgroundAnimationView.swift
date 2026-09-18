@@ -33,7 +33,7 @@ public struct AppBackgroundView: View {
     }
 }
 
-// MARK: - 1. Animación de Burbujas Flotantes
+// MARK: - 1. Animación de Burbujas Flotantes (TimelineView + Canvas sin glitches)
 
 @MainActor
 public struct BubblesAnimationView: View {
@@ -43,35 +43,68 @@ public struct BubblesAnimationView: View {
         public let id: Int
         public let xRatio: CGFloat
         public let size: CGFloat
-        public let duration: Double
-        public let delay: Double
+        public let speed: Double
+        public let swaySpeed: Double
+        public let swayAmp: CGFloat
+        public let phase: Double
         public let opacity: Double
     }
     
     // 16 burbujas distribuidas armónicamente
     private let bubbles: [BubbleData] = (0..<16).map { i in
-        let pseudoX = CGFloat((i * 37 + 13) % 100) / 100.0
-        let pseudoSize = CGFloat(24 + ((i * 29) % 52))
-        let pseudoDuration = 7.0 + Double((i * 17) % 8)
-        let pseudoDelay = Double((i * 11) % 6)
-        let pseudoOpacity = 0.05 + Double((i * 7) % 10) * 0.018
-        return BubbleData(id: i, xRatio: pseudoX, size: pseudoSize, duration: pseudoDuration, delay: pseudoDelay, opacity: pseudoOpacity)
+        let x = CGFloat((i * 37 + 13) % 100) / 100.0
+        let s = CGFloat(24 + ((i * 29) % 52))
+        let speed = 25.0 + Double((i * 17) % 20)
+        let swaySpeed = 1.0 + Double((i * 13) % 5) * 0.3
+        let swayAmp = CGFloat(10 + ((i * 19) % 18))
+        let phase = Double(i) * 1.3
+        let opacity = 0.08 + Double((i * 7) % 10) * 0.02
+        return BubbleData(id: i, xRatio: x, size: s, speed: speed, swaySpeed: swaySpeed, swayAmp: swayAmp, phase: phase, opacity: opacity)
     }
     
     public init() {}
     
     public var body: some View {
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = proxy.size.height
-            
-            ZStack {
-                ForEach(bubbles) { bubble in
-                    SingleBubbleView(
-                        bubble: bubble,
-                        width: w,
-                        height: h,
-                        accentColor: themeManager.accentColor
+        TimelineView(.animation) { timeline in
+            Canvas { context, size in
+                guard size.width > 0 && size.height > 0 else { return }
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                
+                for bubble in bubbles {
+                    let totalH = size.height + bubble.size * 2
+                    let rawY = fmod(time * bubble.speed + bubble.phase * 50.0, Double(totalH))
+                    let y = size.height + bubble.size - CGFloat(rawY)
+                    
+                    let sway = sin(time * bubble.swaySpeed + bubble.phase) * bubble.swayAmp
+                    let x = bubble.xRatio * size.width + sway
+                    
+                    let rect = CGRect(
+                        x: x - bubble.size / 2,
+                        y: y - bubble.size / 2,
+                        width: bubble.size,
+                        height: bubble.size
+                    )
+                    
+                    let gradient = Gradient(colors: [
+                        themeManager.accentColor.opacity(bubble.opacity * 1.6),
+                        Color.white.opacity(bubble.opacity * 0.6),
+                        Color.clear
+                    ])
+                    
+                    context.fill(
+                        Path(ellipseIn: rect),
+                        with: .radialGradient(
+                            gradient,
+                            center: CGPoint(x: rect.midX, y: rect.midY),
+                            startRadius: 0,
+                            endRadius: bubble.size / 2
+                        )
+                    )
+                    
+                    context.stroke(
+                        Path(ellipseIn: rect),
+                        with: .color(themeManager.accentColor.opacity(bubble.opacity * 1.8)),
+                        lineWidth: 1.0
                     )
                 }
             }
@@ -80,50 +113,7 @@ public struct BubblesAnimationView: View {
     }
 }
 
-struct SingleBubbleView: View {
-    let bubble: BubblesAnimationView.BubbleData
-    let width: CGFloat
-    let height: CGFloat
-    let accentColor: Color
-    
-    @State private var animate = false
-    
-    var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [
-                        accentColor.opacity(bubble.opacity * 1.6),
-                        Color.white.opacity(bubble.opacity * 0.6),
-                        Color.clear
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: bubble.size / 2
-                )
-            )
-            .overlay(
-                Circle()
-                    .stroke(accentColor.opacity(bubble.opacity * 2.0), lineWidth: 1)
-            )
-            .frame(width: bubble.size, height: bubble.size)
-            .position(
-                x: width * bubble.xRatio + (animate ? sin(Double(bubble.id)) * 20 : -sin(Double(bubble.id)) * 20),
-                y: animate ? -bubble.size : height + bubble.size
-            )
-            .onAppear {
-                withAnimation(
-                    .easeInOut(duration: bubble.duration)
-                    .repeatForever(autoreverses: false)
-                    .delay(bubble.delay)
-                ) {
-                    animate = true
-                }
-            }
-    }
-}
-
-// MARK: - 2. Animación de Patrón de Hexágonos
+// MARK: - 2. Animación de Patrón de Hexágonos (TimelineView + Canvas)
 
 @MainActor
 public struct HexagonsAnimationView: View {
@@ -134,6 +124,7 @@ public struct HexagonsAnimationView: View {
     public var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
+                guard size.width > 0 && size.height > 0 else { return }
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 let hexRadius: CGFloat = 32.0
                 let hexWidth = hexRadius * sqrt(3)
@@ -193,64 +184,86 @@ public struct HexagonsAnimationView: View {
     }
 }
 
-// MARK: - 3. Animación de Ondas de Aurora Boreal
+// MARK: - 3. Animación de Ondas de Aurora Boreal (TimelineView + Canvas sin glitches)
 
 @MainActor
 public struct AuroraAnimationView: View {
     @EnvironmentObject var themeManager: ThemeManager
     
-    @State private var startAnimation: Bool = false
-    
     public init() {}
     
     public var body: some View {
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = proxy.size.height
-            
-            ZStack {
-                // Esfera 1: Color de acento
-                Circle()
-                    .fill(themeManager.accentColor.opacity(0.20))
-                    .frame(width: w * 0.85, height: w * 0.85)
-                    .blur(radius: 75)
-                    .offset(
-                        x: startAnimation ? -w * 0.18 : w * 0.22,
-                        y: startAnimation ? -h * 0.15 : -h * 0.32
-                    )
+        TimelineView(.animation) { timeline in
+            Canvas { context, size in
+                guard size.width > 0 && size.height > 0 else { return }
+                let time = timeline.date.timeIntervalSinceReferenceDate
                 
-                // Esfera 2: Violeta eléctrico profundo
-                Circle()
-                    .fill(Color(red: 0.38, green: 0.18, blue: 0.85).opacity(0.18))
-                    .frame(width: w * 0.9, height: w * 0.9)
-                    .blur(radius: 80)
-                    .offset(
-                        x: startAnimation ? w * 0.22 : -w * 0.18,
-                        y: startAnimation ? h * 0.18 : h * 0.32
-                    )
+                // Esfera 1: Color de acento (órbita superior)
+                let x1 = size.width * 0.45 + CGFloat(sin(time * 0.35)) * (size.width * 0.28)
+                let y1 = size.height * 0.28 + CGFloat(cos(time * 0.28)) * (size.height * 0.16)
+                let r1 = size.width * 0.75
+                let rect1 = CGRect(x: x1 - r1, y: y1 - r1, width: r1 * 2, height: r1 * 2)
                 
-                // Esfera 3: Cian suave ambiental
-                Circle()
-                    .fill(Color(red: 0.08, green: 0.65, blue: 0.82).opacity(0.14))
-                    .frame(width: w * 0.72, height: w * 0.72)
-                    .blur(radius: 65)
-                    .offset(
-                        x: startAnimation ? -w * 0.12 : w * 0.15,
-                        y: startAnimation ? h * 0.04 : -h * 0.08
+                context.fill(
+                    Path(ellipseIn: rect1),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            themeManager.accentColor.opacity(0.18),
+                            themeManager.accentColor.opacity(0.06),
+                            Color.clear
+                        ]),
+                        center: CGPoint(x: x1, y: y1),
+                        startRadius: 0,
+                        endRadius: r1
                     )
-            }
-            .frame(width: w, height: h)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 7.5).repeatForever(autoreverses: true)) {
-                    startAnimation = true
-                }
+                )
+                
+                // Esfera 2: Violeta eléctrico profundo (órbita inferior)
+                let x2 = size.width * 0.55 + CGFloat(cos(time * 0.25)) * (size.width * 0.26)
+                let y2 = size.height * 0.72 + CGFloat(sin(time * 0.32)) * (size.height * 0.18)
+                let r2 = size.width * 0.82
+                let rect2 = CGRect(x: x2 - r2, y: y2 - r2, width: r2 * 2, height: r2 * 2)
+                
+                context.fill(
+                    Path(ellipseIn: rect2),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            Color(red: 0.45, green: 0.2, blue: 0.9).opacity(0.16),
+                            Color(red: 0.3, green: 0.1, blue: 0.7).opacity(0.05),
+                            Color.clear
+                        ]),
+                        center: CGPoint(x: x2, y: y2),
+                        startRadius: 0,
+                        endRadius: r2
+                    )
+                )
+                
+                // Esfera 3: Cian suave ambiental (órbita central)
+                let x3 = size.width * 0.5 + CGFloat(sin(time * 0.22 + 1.8)) * (size.width * 0.24)
+                let y3 = size.height * 0.48 + CGFloat(cos(time * 0.38 + 1.2)) * (size.height * 0.15)
+                let r3 = size.width * 0.68
+                let rect3 = CGRect(x: x3 - r3, y: y3 - r3, width: r3 * 2, height: r3 * 2)
+                
+                context.fill(
+                    Path(ellipseIn: rect3),
+                    with: .radialGradient(
+                        Gradient(colors: [
+                            Color(red: 0.08, green: 0.72, blue: 0.85).opacity(0.14),
+                            Color(red: 0.05, green: 0.5, blue: 0.6).opacity(0.04),
+                            Color.clear
+                        ]),
+                        center: CGPoint(x: x3, y: y3),
+                        startRadius: 0,
+                        endRadius: r3
+                    )
+                )
             }
         }
         .allowsHitTesting(false)
     }
 }
 
-// MARK: - 4. Animación de Polvo Estelar
+// MARK: - 4. Animación de Polvo Estelar (TimelineView + Canvas)
 
 @MainActor
 public struct StardustAnimationView: View {
@@ -279,24 +292,21 @@ public struct StardustAnimationView: View {
     public var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
+                guard size.width > 0 && size.height > 0 else { return }
                 let time = timeline.date.timeIntervalSinceReferenceDate
                 
                 for star in stars {
-                    // Movimiento vertical suave continuo
                     let rawY = fmod(star.yRatio * size.height - CGFloat(time * 7.5 * star.speed), size.height)
                     let y = rawY < 0 ? rawY + size.height : rawY
                     let x = star.xRatio * size.width + CGFloat(sin(time * 0.75 + star.phase) * 6.0)
                     
-                    // Centelleo de brillo
                     let twinkle = sin(time * star.speed * 2.2 + star.phase)
                     let alpha = max(0.12, 0.32 + 0.45 * twinkle)
                     
                     let rect = CGRect(x: x - star.size / 2, y: y - star.size / 2, width: star.size, height: star.size)
                     
-                    // Núcleo brillante
                     context.fill(Path(ellipseIn: rect), with: .color(Color.white.opacity(alpha)))
                     
-                    // Resplandor de acento en destellos fuertes
                     if twinkle > 0.4 {
                         let glowRect = CGRect(x: x - star.size * 1.5, y: y - star.size * 1.5, width: star.size * 3, height: star.size * 3)
                         context.fill(Path(ellipseIn: glowRect), with: .color(themeManager.accentColor.opacity(alpha * 0.35)))
