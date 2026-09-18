@@ -126,19 +126,49 @@ public final class PocketBaseManager: ObservableObject {
         self.progressUploads = []
     }
     
-    /// Construye una URL con parámetros de consulta codificados correctamente (evita errores con '&&', comillas, espacios, etc.).
-    private func makeURL(path: String, queryItems: [URLQueryItem] = []) -> URL? {
-        var components = URLComponents(string: "\(normalizedBaseURL)\(path)")
-        if !queryItems.isEmpty {
-            components?.queryItems = queryItems
-        }
-        return components?.url
+extension String {
+    /// Codifica una cadena de filtro para PocketBase exactamente como `encodeURIComponent` de JavaScript,
+    /// dejando `=` sin codificar para que el parser de PocketBase reconozca los operadores de igualdad.
+    var pocketBaseQueryEncoded: String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&$+\"#")
+        return self.addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
-    
-    // MARK: - Carga de Datos de Gimnasio
-    
+}
+
+// MARK: - Carga de Datos de Gimnasio
+
+    public func refreshAuthSession() async -> Bool {
+        guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/collections/users/auth-refresh") else {
+            return false
+        }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let newToken = json["token"] as? String,
+               let recordDict = json["record"] as? [String: Any],
+               let recordData = try? JSONSerialization.data(withJSONObject: recordDict),
+               let updatedUser = try? JSONDecoder().decode(GymUser.self, from: recordData) {
+                
+                self.authToken = newToken
+                self.currentUser = updatedUser
+                return true
+            }
+        } catch {
+            print("Error en auth-refresh: \(error.localizedDescription)")
+        }
+        return false
+    }
+
     public func fetchFileToken() async {
-        guard let token = authToken, let url = makeURL(path: "/api/files/token") else { return }
+        guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/files/token") else { return }
         
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -160,6 +190,7 @@ public final class PocketBaseManager: ObservableObject {
     public func refreshAllGymData() async {
         guard isLoggedIn, let user = currentUser else { return }
         
+        _ = await refreshAuthSession()
         await fetchFileToken()
         await fetchActiveRoutine(forUserId: user.id)
         await fetchProgressUploads(forUserId: user.id)
@@ -168,83 +199,72 @@ public final class PocketBaseManager: ObservableObject {
     public func fetchActiveRoutine(forUserId userId: String) async {
         guard let token = authToken else { return }
         
-        guard let url = makeURL(
-            path: "/api/collections/client_routines/records",
-            queryItems: [
-                URLQueryItem(name: "filter", value: "client = \"\(userId)\" && active = true"),
-                URLQueryItem(name: "expand", value: "routine")
-            ]
-        ) else { return }
+        let filterStr = "client = \"\(userId)\" && active = true".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&expand=routine") else { return }
         
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            if let httpResp = response as? HTTPURLResponse, !(200...299).contains(httpResp.statusCode) {
-                print("PocketBase fetchActiveRoutine HTTP Error: \(httpResp.statusCode)")
+            guard let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) else {
+                if let httpResp = response as? HTTPURLResponse {
+                    print("PocketBase fetchActiveRoutine HTTP Error: \(httpResp.statusCode)")
+                }
+                return
             }
+            
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let items = json["items"] as? [[String: Any]],
-               let firstAssignment = items.first {
+               let items = json["items"] as? [[String: Any]] {
                 
-                var targetRoutineId: String? = firstAssignment["routine"] as? String
-                
-                // Extraer el objeto de rutina expandido
-                if let expand = firstAssignment["expand"] as? [String: Any],
-                   let routineDict = expand["routine"] as? [String: Any],
-                   let routineData = try? JSONSerialization.data(withJSONObject: routineDict),
-                   let routine = try? JSONDecoder().decode(GymRoutine.self, from: routineData) {
+                if let firstAssignment = items.first {
+                    var targetRoutineId: String? = firstAssignment["routine"] as? String
                     
-                    self.activeRoutine = routine
-                    targetRoutineId = routine.id
+                    if let expand = firstAssignment["expand"] as? [String: Any],
+                       let routineDict = expand["routine"] as? [String: Any],
+                       let routineData = try? JSONSerialization.data(withJSONObject: routineDict),
+                       let routine = try? JSONDecoder().decode(GymRoutine.self, from: routineData) {
+                        
+                        self.activeRoutine = routine
+                        targetRoutineId = routine.id
+                    }
+                    
+                    if let rId = targetRoutineId {
+                        await fetchRoutineDays(routineId: rId)
+                    }
+                } else {
+                    self.activeRoutine = nil
+                    self.routineDays = []
                 }
-                
-                if let rId = targetRoutineId {
-                    await fetchRoutineDays(routineId: rId)
-                }
-            } else {
-                self.activeRoutine = nil
-                self.routineDays = []
             }
         } catch {
             print("Error obteniendo rutina activa: \(error.localizedDescription)")
-            self.activeRoutine = nil
-            self.routineDays = []
         }
     }
     
     private func fetchRoutineDays(routineId: String) async {
         guard let token = authToken else { return }
         
-        // Si no teníamos los datos completos de la rutina, cargarlos directamente
         if self.activeRoutine == nil || self.activeRoutine?.id != routineId {
-            if let url = makeURL(path: "/api/collections/routines/records/\(routineId)") {
+            if let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(routineId)") {
                 var req = URLRequest(url: url)
                 req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                if let (data, _) = try? await URLSession.shared.data(for: req),
+                if let (data, resp) = try? await URLSession.shared.data(for: req),
+                   let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
                    let routine = try? JSONDecoder().decode(GymRoutine.self, from: data) {
                     self.activeRoutine = routine
                 }
             }
         }
         
-        if let url = makeURL(
-            path: "/api/collections/routine_days/records",
-            queryItems: [
-                URLQueryItem(name: "filter", value: "routine = \"\(routineId)\""),
-                URLQueryItem(name: "sort", value: "created")
-            ]
-        ) {
+        let filterStr = "routine = \"\(routineId)\"".pocketBaseQueryEncoded
+        if let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(filterStr)&sort=created") {
             var req = URLRequest(url: url)
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            if let (data, response) = try? await URLSession.shared.data(for: req) {
-                if let httpResp = response as? HTTPURLResponse, !(200...299).contains(httpResp.statusCode) {
-                    print("PocketBase fetchRoutineDays HTTP Error: \(httpResp.statusCode)")
-                }
-                if let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: data) {
-                    self.routineDays = listResp.items
-                }
+            if let (data, resp) = try? await URLSession.shared.data(for: req),
+               let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+               let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: data) {
+                self.routineDays = listResp.items
             }
         }
         
@@ -255,17 +275,14 @@ public final class PocketBaseManager: ObservableObject {
         guard let token = authToken, let user = currentUser else { return }
         let today = String(Date().formatted(.iso8601).prefix(10))
         
-        guard let url = makeURL(
-            path: "/api/collections/workout_completions/records",
-            queryItems: [
-                URLQueryItem(name: "filter", value: "client = \"\(user.id)\" && completed_date = \"\(today)\"")
-            ]
-        ) else { return }
+        let filterStr = "client = \"\(user.id)\" && completed_date = \"\(today)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") else { return }
         
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        if let (data, _) = try? await URLSession.shared.data(for: req),
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
            let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data) {
             self.completedDayIds = Set(listResp.items.map { $0.routine_day })
         }
@@ -277,19 +294,15 @@ public final class PocketBaseManager: ObservableObject {
         
         if completedDayIds.contains(dayId) {
             completedDayIds.remove(dayId)
-            if let url = makeURL(
-                path: "/api/collections/workout_completions/records",
-                queryItems: [
-                    URLQueryItem(name: "filter", value: "client = \"\(user.id)\" && routine_day = \"\(dayId)\" && completed_date = \"\(todayStr)\"")
-                ]
-            ) {
+            let filterStr = "client = \"\(user.id)\" && routine_day = \"\(dayId)\" && completed_date = \"\(todayStr)\"".pocketBaseQueryEncoded
+            if let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") {
                 var req = URLRequest(url: url)
                 req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 if let (data, _) = try? await URLSession.shared.data(for: req),
                    let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data),
                    let firstItem = listResp.items.first {
                     
-                    if let delURL = makeURL(path: "/api/collections/workout_completions/records/\(firstItem.id)") {
+                    if let delURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records/\(firstItem.id)") {
                         var delReq = URLRequest(url: delURL)
                         delReq.httpMethod = "DELETE"
                         delReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -299,7 +312,7 @@ public final class PocketBaseManager: ObservableObject {
             }
         } else {
             completedDayIds.insert(dayId)
-            guard let url = makeURL(path: "/api/collections/workout_completions/records") else { return }
+            guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records") else { return }
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -320,24 +333,20 @@ public final class PocketBaseManager: ObservableObject {
     public func fetchProgressUploads(forUserId userId: String) async {
         guard let token = authToken else { return }
         
-        guard let url = makeURL(
-            path: "/api/collections/progress_uploads/records",
-            queryItems: [
-                URLQueryItem(name: "filter", value: "client = \"\(userId)\""),
-                URLQueryItem(name: "sort", value: "-created")
-            ]
-        ) else { return }
+        let filterStr = "client = \"\(userId)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records?filter=\(filterStr)&sort=-created") else { return }
         
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
-            if let httpResp = response as? HTTPURLResponse, !(200...299).contains(httpResp.statusCode) {
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                if let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data) {
+                    self.progressUploads = listResp.items
+                }
+            } else if let httpResp = response as? HTTPURLResponse {
                 print("PocketBase fetchProgressUploads HTTP Error: \(httpResp.statusCode)")
-            }
-            if let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data) {
-                self.progressUploads = listResp.items
             }
         } catch {
             print("Error cargando progress_uploads: \(error.localizedDescription)")

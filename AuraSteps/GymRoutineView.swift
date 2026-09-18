@@ -41,6 +41,11 @@ struct GymRoutineView: View {
             .sheet(isPresented: $showLogModal) {
                 logModalView
             }
+            .task {
+                if pbManager.routineDays.isEmpty, let user = pbManager.currentUser {
+                    await pbManager.fetchActiveRoutine(forUserId: user.id)
+                }
+            }
         }
     }
     

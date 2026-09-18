@@ -48,6 +48,11 @@ struct GymDashboardView: View {
             .refreshable {
                 await pbManager.refreshAllGymData()
             }
+            .task {
+                if pbManager.activeRoutine == nil && pbManager.progressUploads.isEmpty {
+                    await pbManager.refreshAllGymData()
+                }
+            }
         }
     }
     

@@ -189,6 +189,11 @@ struct GymGalleryView: View {
                     .environmentObject(pbManager)
                     .environmentObject(themeManager)
             }
+            .task {
+                if pbManager.progressUploads.isEmpty, let user = pbManager.currentUser {
+                    await pbManager.fetchProgressUploads(forUserId: user.id)
+                }
+            }
         }
     }
 }
