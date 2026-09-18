@@ -11,19 +11,7 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      - AuraSteps/AuraStepsApp.swift
-      - AuraSteps/DashboardView.swift
-      - AuraSteps/ConnectionsView.swift
-      - AuraSteps/SettingsView.swift
-      - AuraSteps/StepMotionManager.swift
-      - AuraSteps/DeepLinkManager.swift
-      - AuraSteps/WebhookDispatcher.swift
-      - AuraSteps/UserSettingsManager.swift
-      - AuraSteps/ThemeManager.swift
-      - AuraSteps/WelcomeOnboardingView.swift
-      - AuraSteps/NotificationManager.swift
-      - AuraSteps/AchievementsManager.swift
-      - AuraSteps/Assets.xcassets
+      - path: AuraSteps
     info:
       path: AuraSteps/Info.plist
       properties:
