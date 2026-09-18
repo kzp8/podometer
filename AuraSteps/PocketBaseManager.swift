@@ -126,17 +126,15 @@ public final class PocketBaseManager: ObservableObject {
         self.progressUploads = []
     }
     
-extension String {
-    /// Codifica una cadena de filtro para PocketBase exactamente como `encodeURIComponent` de JavaScript,
-    /// dejando `=` sin codificar para que el parser de PocketBase reconozca los operadores de igualdad.
-    var pocketBaseQueryEncoded: String {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "&$+\"#")
-        return self.addingPercentEncoding(withAllowedCharacters: allowed) ?? self
+    private func makeURL(path: String, queryItems: [URLQueryItem] = []) -> URL? {
+        var components = URLComponents(string: "\(normalizedBaseURL)\(path)")
+        if !queryItems.isEmpty {
+            components?.queryItems = queryItems
+        }
+        return components?.url
     }
-}
-
-// MARK: - Carga de Datos de Gimnasio
+    
+    // MARK: - Carga de Datos de Gimnasio
 
     public func refreshAuthSession() async -> Bool {
         guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/collections/users/auth-refresh") else {
@@ -413,5 +411,17 @@ extension String {
             queryItems.append(URLQueryItem(name: "token", value: token))
         }
         return makeURL(path: "/api/files/\(collectionName)/\(recordId)/\(fileName)", queryItems: queryItems)
+    }
+}
+
+// MARK: - Extensiones de Apoyo
+
+extension String {
+    /// Codifica una cadena de filtro para PocketBase exactamente como `encodeURIComponent` de JavaScript,
+    /// dejando `=` sin codificar para que el parser de PocketBase reconozca los operadores de igualdad.
+    var pocketBaseQueryEncoded: String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&$+\"#")
+        return self.addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
 }
