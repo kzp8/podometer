@@ -10,6 +10,7 @@ struct AuraStepsApp: App {
     @StateObject private var themeManager = ThemeManager()
     @StateObject private var notificationManager = NotificationManager()
     @StateObject private var achievementsManager = AchievementsManager()
+    @StateObject private var pocketBaseManager = PocketBaseManager()
     
     @State private var selectedTab: Int = 0
     @State private var showOnboarding: Bool = false
@@ -23,11 +24,19 @@ struct AuraStepsApp: App {
                     }
                     .tag(0)
                 
+                if pocketBaseManager.isLoggedIn {
+                    GymDashboardView()
+                        .tabItem {
+                            Label("Gimnasio", systemImage: "dumbbell.fill")
+                        }
+                        .tag(1)
+                }
+                
                 SettingsView()
                     .tabItem {
                         Label("Ajustes", systemImage: "gearshape.fill")
                     }
-                    .tag(1)
+                    .tag(pocketBaseManager.isLoggedIn ? 2 : 1)
             }
             .tint(themeManager.accentColor)
             .preferredColorScheme(.dark)
@@ -38,6 +47,7 @@ struct AuraStepsApp: App {
             .environmentObject(themeManager)
             .environmentObject(notificationManager)
             .environmentObject(achievementsManager)
+            .environmentObject(pocketBaseManager)
             .onOpenURL { url in
                 deepLinkManager.handleURL(url)
             }

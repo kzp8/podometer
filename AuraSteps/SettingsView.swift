@@ -9,6 +9,7 @@ struct SettingsView: View {
     @EnvironmentObject private var dispatcher: WebhookDispatcher
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var achievementsManager: AchievementsManager
+    @EnvironmentObject private var pbManager: PocketBaseManager
     
     @State private var isPresentingQRScanner = false
     @State private var pingResultMessage: String? = nil
@@ -16,6 +17,8 @@ struct SettingsView: View {
     @State private var deleteSuccessMessage: String? = nil
     @State private var isQRButtonPressed = false
     @State private var isPingButtonPressed = false
+    @State private var pbEmailInput: String = ""
+    @State private var pbPasswordInput: String = ""
     
     var body: some View {
         NavigationStack {
@@ -27,6 +30,7 @@ struct SettingsView: View {
                         biometricSection
                         goalsAndRemindersSection
                         achievementsGridSection
+                        gymConnectionSection
                         connectionSection
                         themeSection
                         privacySection
@@ -656,6 +660,140 @@ struct SettingsView: View {
                     .foregroundColor(themeManager.accentColor)
                     .padding(.top, 4)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .padding(20)
+        .background(themeManager.cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private var gymConnectionSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "figure.cross.training")
+                    .font(.title3)
+                    .foregroundColor(themeManager.accentColor)
+                Text("Gimnasio y Entrenador (PocketBase)")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                if pbManager.isLoggedIn {
+                    Text("Conectado 🟢")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.emeraldGreen)
+                }
+            }
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            if pbManager.isLoggedIn, let user = pbManager.currentUser {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(user.displayName)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            Text(user.email)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        
+                        Button("Cerrar Sesión") {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                            pbManager.logout()
+                        }
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.red)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .background(Color.red.opacity(0.15))
+                        .cornerRadius(10)
+                    }
+                    
+                    Text("Servidor: \(pbManager.serverURL)")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Vincular con tu entrenador te permite ver tus rutinas asignadas, marcar series y subir vídeos de progreso.")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Servidor PocketBase:")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                        TextField("http://127.0.0.1:8090", text: $pbManager.serverURL)
+                            .textFieldStyle(.plain)
+                            .padding(10)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(10)
+                            .foregroundColor(.white)
+                            .autocapitalize(.none)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Email de Alumno:")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                        TextField("alumno@gimnasio.com", text: $pbEmailInput)
+                            .textFieldStyle(.plain)
+                            .padding(10)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(10)
+                            .foregroundColor(.white)
+                            .autocapitalize(.none)
+                            .keyboardType(.emailAddress)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Contraseña:")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                        SecureField("••••••••", text: $pbPasswordInput)
+                            .textFieldStyle(.plain)
+                            .padding(10)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(10)
+                            .foregroundColor(.white)
+                    }
+                    
+                    if let err = pbManager.errorMessage {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
+                    Button(action: {
+                        Task { @MainActor in
+                            _ = await pbManager.login(identity: pbEmailInput, password: pbPasswordInput)
+                        }
+                    }) {
+                        HStack {
+                            if pbManager.isLoading {
+                                ProgressView().tint(.black)
+                            } else {
+                                Image(systemName: "lock.open.fill")
+                                Text("Iniciar Sesión en el Gimnasio")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(themeManager.accentColor)
+                        .cornerRadius(12)
+                    }
+                    .disabled(pbManager.isLoading || pbEmailInput.isEmpty || pbPasswordInput.isEmpty)
+                }
             }
         }
         .padding(20)

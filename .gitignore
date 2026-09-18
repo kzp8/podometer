@@ -1,0 +1,8 @@
+# Backup directory (ignored from Git)
+backup/
+
+# Build artifacts and derived data
+build/
+*.xcodeproj/
+*.xcworkspace/
+.DS_Store
