@@ -676,6 +676,7 @@ private final class VideoThumbnailCache {
 struct GymVideoThumbnailView: View {
     let url: URL
     let authToken: String?
+    var showPlayButton: Bool = false
     @EnvironmentObject var themeManager: ThemeManager
     
     @State private var thumbnail: UIImage? = nil
@@ -704,32 +705,55 @@ struct GymVideoThumbnailView: View {
                     .tint(themeManager.accentColor)
             }
             
-            // Botón de play superpuesto
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.55))
-                        .frame(width: 52, height: 52)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        )
+            if showPlayButton {
+                // Botón de play superpuesto grande
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.55))
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                        
+                        Circle()
+                            .fill(themeManager.accentColor)
+                            .frame(width: 44, height: 44)
+                        
+                        Image(systemName: "play.fill")
+                            .font(.body)
+                            .foregroundColor(.black)
+                            .offset(x: 1.5)
+                    }
                     
-                    Circle()
-                        .fill(themeManager.accentColor)
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "play.fill")
-                        .font(.body)
-                        .foregroundColor(.black)
-                        .offset(x: 1.5)
+                    Text("Toca para reproducir")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.7), radius: 3, x: 0, y: 1)
                 }
-                
-                Text("Toca para reproducir")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.7), radius: 3, x: 0, y: 1)
+            } else {
+                // Insignia discreta de vídeo en la esquina inferior
+                VStack {
+                    Spacer()
+                    HStack {
+                        HStack(spacing: 4) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 9))
+                            Text("VÍDEO")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.black.opacity(0.65))
+                        .cornerRadius(6)
+                        
+                        Spacer()
+                    }
+                    .padding(6)
+                }
             }
         }
         .clipped()

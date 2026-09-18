@@ -2123,7 +2123,7 @@ struct TrainerUploadDetailView: View {
                         }) {
                             ZStack(alignment: .bottomTrailing) {
                                 if upload.isVideo {
-                                    GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                    GymVideoThumbnailView(url: url, authToken: pbManager.authToken, showPlayButton: true)
                                         .frame(height: 320)
                                         .cornerRadius(16)
                                 } else {
