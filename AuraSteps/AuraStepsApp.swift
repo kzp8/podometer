@@ -26,27 +26,54 @@ struct AuraStepsApp: App {
                 
                 ZStack {
                     if pocketBaseManager.isLoggedIn {
-                        DashboardView()
+                        if pocketBaseManager.currentUser?.isAdmin == true {
+                            // MODO ENTRENADOR (ADMIN)
+                            TrainerDashboardView(
+                                onGoToGallery: { tabScrollManager.selectTab(3) },
+                                onGoToClients: { tabScrollManager.selectTab(1) }
+                            )
                             .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
                             .allowsHitTesting(tabScrollManager.selectedTab == 0)
-                        
-                        GymDashboardView(onNavigateToRoutine: {
-                            tabScrollManager.selectTab(2) // Mi Rutina
-                        })
-                        .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
-                        .allowsHitTesting(tabScrollManager.selectedTab == 1)
-                        
-                        GymRoutineView()
-                            .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 2)
-                        
-                        GymGalleryView()
-                            .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 3)
-                        
-                        SettingsView(tabIndex: 4)
-                            .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
-                            .allowsHitTesting(tabScrollManager.selectedTab == 4)
+                            
+                            TrainerClientsView()
+                                .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 1)
+                            
+                            TrainerRoutinesView()
+                                .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 2)
+                            
+                            TrainerGalleryView()
+                                .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 3)
+                            
+                            SettingsView(tabIndex: 4)
+                                .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 4)
+                        } else {
+                            // MODO ALUMNO (CLIENTE)
+                            DashboardView()
+                                .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 0)
+                            
+                            GymDashboardView(onNavigateToRoutine: {
+                                tabScrollManager.selectTab(2) // Mi Rutina
+                            })
+                            .opacity(tabScrollManager.selectedTab == 1 ? 1 : 0)
+                            .allowsHitTesting(tabScrollManager.selectedTab == 1)
+                            
+                            GymRoutineView()
+                                .opacity(tabScrollManager.selectedTab == 2 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 2)
+                            
+                            GymGalleryView()
+                                .opacity(tabScrollManager.selectedTab == 3 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 3)
+                            
+                            SettingsView(tabIndex: 4)
+                                .opacity(tabScrollManager.selectedTab == 4 ? 1 : 0)
+                                .allowsHitTesting(tabScrollManager.selectedTab == 4)
+                        }
                     } else {
                         DashboardView()
                             .opacity(tabScrollManager.selectedTab == 0 ? 1 : 0)
@@ -59,7 +86,7 @@ struct AuraStepsApp: App {
                 }
                 .animation(.easeInOut(duration: 0.22), value: tabScrollManager.selectedTab)
                 .safeAreaInset(edge: .bottom) {
-                    CustomAnimatedTabBar(isLoggedIn: pocketBaseManager.isLoggedIn)
+                    CustomAnimatedTabBar(isLoggedIn: pocketBaseManager.isLoggedIn, isAdmin: pocketBaseManager.currentUser?.isAdmin == true)
                 }
             }
             .onChange(of: pocketBaseManager.isLoggedIn) { loggedIn in
@@ -143,25 +170,39 @@ struct AuraStepsApp: App {
 struct CustomAnimatedTabBar: View {
     @EnvironmentObject var tabScrollManager: TabScrollManager
     let isLoggedIn: Bool
+    var isAdmin: Bool = false
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var pbManager: PocketBaseManager
     @Namespace private var tabAnimationNamespace
     
     struct TabItemData: Identifiable {
         let tag: Int
         let label: String
         let icon: String
+        var badgeCount: Int? = nil
         var id: Int { tag }
     }
     
     var tabs: [TabItemData] {
         if isLoggedIn {
-            return [
-                TabItemData(tag: 0, label: "Pasos", icon: "figure.walk"),
-                TabItemData(tag: 1, label: "Inicio", icon: "house.fill"),
-                TabItemData(tag: 2, label: "Mi Rutina", icon: "dumbbell.fill"),
-                TabItemData(tag: 3, label: "Galería", icon: "photo.stack.fill"),
-                TabItemData(tag: 4, label: "Ajustes", icon: "gearshape.fill")
-            ]
+            if isAdmin {
+                let pendingCount = pbManager.pendingReviewsCount
+                return [
+                    TabItemData(tag: 0, label: "Inicio", icon: "square.grid.2x2.fill"),
+                    TabItemData(tag: 1, label: "Clientes", icon: "person.2.fill"),
+                    TabItemData(tag: 2, label: "Rutinas", icon: "dumbbell.fill"),
+                    TabItemData(tag: 3, label: "Galería", icon: "video.fill", badgeCount: pendingCount > 0 ? pendingCount : nil),
+                    TabItemData(tag: 4, label: "Ajustes", icon: "gearshape.fill")
+                ]
+            } else {
+                return [
+                    TabItemData(tag: 0, label: "Pasos", icon: "figure.walk"),
+                    TabItemData(tag: 1, label: "Inicio", icon: "house.fill"),
+                    TabItemData(tag: 2, label: "Mi Rutina", icon: "dumbbell.fill"),
+                    TabItemData(tag: 3, label: "Galería", icon: "photo.stack.fill"),
+                    TabItemData(tag: 4, label: "Ajustes", icon: "gearshape.fill")
+                ]
+            }
         } else {
             return [
                 TabItemData(tag: 0, label: "Pasos", icon: "figure.walk"),
@@ -180,22 +221,36 @@ struct CustomAnimatedTabBar: View {
                     tabScrollManager.selectTab(tab.tag)
                 }) {
                     VStack(spacing: 4) {
-                        ZStack {
-                            if isSelected {
-                                Capsule()
-                                    .fill(themeManager.accentColor.opacity(0.18))
-                                    .frame(width: 48, height: 28)
-                                    .matchedGeometryEffect(id: "activeTabPill", in: tabAnimationNamespace)
+                        ZStack(alignment: .topTrailing) {
+                            ZStack {
+                                if isSelected {
+                                    Capsule()
+                                        .fill((isAdmin ? Color(hex: "A78BFA") : themeManager.accentColor).opacity(0.18))
+                                        .frame(width: 48, height: 28)
+                                        .matchedGeometryEffect(id: "activeTabPill", in: tabAnimationNamespace)
+                                }
+                                
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: 18, weight: isSelected ? .bold : .medium))
+                                    .foregroundColor(isSelected ? (isAdmin ? Color(hex: "C4B5FD") : themeManager.accentColor) : .gray)
                             }
                             
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 18, weight: isSelected ? .bold : .medium))
-                                .foregroundColor(isSelected ? themeManager.accentColor : .gray)
+                            // Badge numérico (ej: 4 en Galería)
+                            if let badge = tab.badgeCount, badge > 0 {
+                                Text("\(badge)")
+                                    .font(.system(size: 10, weight: .black))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color(hex: "7C3AED"))
+                                    .clipShape(Capsule())
+                                    .offset(x: 10, y: -6)
+                            }
                         }
                         
                         Text(tab.label)
                             .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                            .foregroundColor(isSelected ? themeManager.accentColor : .gray)
+                            .foregroundColor(isSelected ? (isAdmin ? Color(hex: "C4B5FD") : themeManager.accentColor) : .gray)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)

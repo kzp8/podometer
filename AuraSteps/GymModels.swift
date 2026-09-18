@@ -8,6 +8,8 @@ public struct GymUser: Identifiable, Codable, Sendable {
     public var full_name: String?
     public var role: String? // "admin" o "client"
     public var avatar: String?
+    public var trainer: String?
+    public var status: String? // "activo", "inactivo" o nil
     public var created: String?
     
     public var userRole: String {
@@ -45,14 +47,17 @@ public struct GymUser: Identifiable, Codable, Sendable {
     }
     
     public var isAdmin: Bool { userRole == "admin" }
+    public var isActive: Bool { status?.lowercased() != "inactivo" }
     
-    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, created: String? = nil) {
+    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, trainer: String? = nil, status: String? = "activo", created: String? = nil) {
         self.id = id
         self.email = email
         self.name = name
         self.full_name = full_name
         self.role = role
         self.avatar = avatar
+        self.trainer = trainer
+        self.status = status
         self.created = created
     }
 }
@@ -60,24 +65,30 @@ public struct GymUser: Identifiable, Codable, Sendable {
 /// Modelo que representa una rutina de entrenamiento.
 public struct GymRoutine: Identifiable, Codable, Sendable {
     public let id: String
-    public let name: String
-    public let description: String?
-    public let level: String?
+    public var name: String
+    public var description: String?
+    public var level: String?
+    public var trainer: String?
     
-    public init(id: String, name: String, description: String? = nil, level: String? = nil) {
+    // Conteo local o expand opcional para días
+    public var daysCount: Int?
+    
+    public init(id: String, name: String, description: String? = nil, level: String? = nil, trainer: String? = nil, daysCount: Int? = nil) {
         self.id = id
         self.name = name
         self.description = description
         self.level = level
+        self.trainer = trainer
+        self.daysCount = daysCount
     }
 }
 
 /// Modelo que representa un día dentro de una rutina de entrenamiento.
 public struct GymRoutineDay: Identifiable, Codable, Sendable {
     public let id: String
-    public let routine: String?
-    public let day_name: String?
-    public let content: String?
+    public var routine: String?
+    public var day_name: String?
+    public var content: String?
     
     public var title: String {
         day_name ?? "Día de entrenamiento"
@@ -123,6 +134,11 @@ public struct GymWorkoutLog: Identifiable, Codable, Sendable {
     }
 }
 
+/// Expansión para incluir datos del cliente en GymProgressUpload
+public struct GymProgressUploadExpand: Codable, Sendable {
+    public let client: GymUser?
+}
+
 /// Modelo que representa la subida de un vídeo o foto de progreso entregado al entrenador.
 public struct GymProgressUpload: Identifiable, Codable, Sendable {
     public let id: String
@@ -136,6 +152,7 @@ public struct GymProgressUpload: Identifiable, Codable, Sendable {
     public var response_seen: Bool?
     public let uploaded_at: String?
     public let created: String?
+    public let expand: GymProgressUploadExpand?
     
     /// Alias para compatibilidad con vistas existentes
     public var notes: String? {
@@ -149,7 +166,36 @@ public struct GymProgressUpload: Identifiable, Codable, Sendable {
         return false
     }
     
-    public init(id: String, client: String? = nil, file: String? = nil, file_type: String? = nil, note: String? = nil, notes: String? = nil, seen_by_admin: Bool? = false, admin_response: String? = nil, admin_response_at: String? = nil, response_seen: Bool? = false, uploaded_at: String? = nil, created: String? = nil) {
+    public var clientDisplayName: String {
+        if let cl = expand?.client {
+            return cl.displayName
+        }
+        return "Cliente"
+    }
+    
+    public var clientInitials: String {
+        if let cl = expand?.client {
+            return cl.initials
+        }
+        return "C"
+    }
+    
+    public var formattedUploadDate: String {
+        let raw = uploaded_at ?? created ?? ""
+        if raw.isEmpty { return "" }
+        let clean = raw.replacingOccurrences(of: " ", with: "T")
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: clean) {
+            let out = DateFormatter()
+            out.locale = Locale(identifier: "es_ES")
+            out.dateFormat = "d MMM, HH:mm"
+            return out.string(from: date)
+        }
+        return String(raw.prefix(16))
+    }
+    
+    public init(id: String, client: String? = nil, file: String? = nil, file_type: String? = nil, note: String? = nil, notes: String? = nil, seen_by_admin: Bool? = false, admin_response: String? = nil, admin_response_at: String? = nil, response_seen: Bool? = false, uploaded_at: String? = nil, created: String? = nil, expand: GymProgressUploadExpand? = nil) {
         self.id = id
         self.client = client
         self.file = file
@@ -161,6 +207,7 @@ public struct GymProgressUpload: Identifiable, Codable, Sendable {
         self.response_seen = response_seen
         self.uploaded_at = uploaded_at
         self.created = created
+        self.expand = expand
     }
 }
 

@@ -1,0 +1,1738 @@
+import SwiftUI
+
+// MARK: - Componente de Cabecera Común del Entrenador
+
+@MainActor
+struct TrainerHeaderView: View {
+    let title: String
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icono / Logo con resplandor
+            ZStack {
+                Circle()
+                    .fill(Color(hex: "7C3AED").opacity(0.2))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(Color(hex: "A78BFA"))
+            }
+            
+            Text(title)
+                .font(.system(size: 22, weight: .black))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            // Badge Entrenador
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "7C3AED"))
+                        .frame(width: 26, height: 26)
+                    Text(pbManager.currentUser?.initials.prefix(1).uppercased() ?? "A")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundColor(.white)
+                }
+                Text("Admin")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.08))
+            .cornerRadius(20)
+            
+            // Botón Salir / Logout rápido
+            Button(action: {
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
+                pbManager.logout()
+            }) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+}
+
+// MARK: - 1. PESTAÑA INICIO (DASHBOARD ENTRENADOR)
+
+@MainActor
+struct TrainerDashboardView: View {
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var tabScrollManager: TabScrollManager
+    
+    var onGoToGallery: () -> Void = {}
+    var onGoToClients: () -> Void = {}
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(spacing: 0) {
+                    TrainerHeaderView(title: "Dashboard")
+                    
+                    ScrollView {
+                        VStack(spacing: 18) {
+                            // Banner superior "Tienes X vídeos pendientes de revisar"
+                            pendingVideosBanner
+                            
+                            // Grid 2x2 Métricas
+                            metricsGrid
+                            
+                            // Sección Clientes Recientes
+                            recentClientsSection
+                            
+                            // Sección Últimos Archivos Recibidos
+                            recentUploadsSection
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 80)
+                    }
+                    .refreshable {
+                        await pbManager.fetchTrainerAllData()
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+        }
+    }
+    
+    // MARK: - Banner de Pendientes
+    @ViewBuilder
+    private var pendingVideosBanner: some View {
+        let pending = pbManager.pendingReviewsCount
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("Buenos días, \(pbManager.currentUser?.displayName ?? "Admin")")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(hex: "C4B5FD"))
+                    Text("👋")
+                }
+                
+                Text(pending > 0 ? "Tienes \(pending) vídeos pendientes de revisar" : "¡Todo al día! Sin revisiones pendientes")
+                    .font(.system(size: 20, weight: .black))
+                    .foregroundColor(.white)
+            }
+            
+            Button(action: {
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
+                onGoToGallery()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "eye.fill")
+                    Text("Revisar ahora")
+                        .fontWeight(.bold)
+                }
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color(hex: "A78BFA"))
+                .cornerRadius(12)
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color(hex: "1F1735").opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color(hex: "7C3AED").opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    // MARK: - Grid 2x2 Métricas
+    @ViewBuilder
+    private var metricsGrid: some View {
+        let activeClients = pbManager.trainerClients.filter { $0.isActive }.count
+        let totalClients = pbManager.trainerClients.count
+        let routinesCount = pbManager.trainerRoutines.count
+        let totalVideos = pbManager.trainerUploads.filter { $0.isVideo }.count
+        let pendingVideos = pbManager.trainerUploads.filter { $0.isVideo && $0.seen_by_admin != true }.count
+        let retention = totalClients > 0 ? Int((Double(activeClients) / Double(totalClients)) * 100) : 100
+        
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            // Tarjeta 1: Clientes Activos
+            metricCard(
+                icon: "person.2.fill",
+                iconColor: Color(hex: "A78BFA"),
+                iconBg: Color(hex: "7C3AED").opacity(0.3),
+                value: "\(activeClients)",
+                title: "Clientes activos",
+                subtitle: "\(totalClients) total"
+            )
+            
+            // Tarjeta 2: Rutinas Creadas
+            metricCard(
+                icon: "dumbbell.fill",
+                iconColor: Color(hex: "38BDF8"),
+                iconBg: Color(hex: "0284C7").opacity(0.3),
+                value: "\(routinesCount)",
+                title: "Rutinas creadas",
+                subtitle: "Disponibles"
+            )
+            
+            // Tarjeta 3: Vídeos recibidos
+            metricCard(
+                icon: "video.fill",
+                iconColor: Color(hex: "C084FC"),
+                iconBg: Color(hex: "9333EA").opacity(0.3),
+                value: "\(totalVideos)",
+                title: "Vídeos recibidos",
+                subtitle: "\(pendingVideos) pendientes"
+            )
+            
+            // Tarjeta 4: Retención
+            metricCard(
+                icon: "chart.line.uptrend.xyaxis",
+                iconColor: Color(hex: "34D399"),
+                iconBg: Color(hex: "059669").opacity(0.3),
+                value: "\(retention)%",
+                title: "Clientes activos",
+                subtitle: "De retención 🔥"
+            )
+        }
+    }
+    
+    private func metricCard(icon: String, iconColor: Color, iconBg: Color, value: String, title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(iconBg)
+                    .frame(width: 38, height: 38)
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(iconColor)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundColor(.white)
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundColor(.gray)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+    
+    // MARK: - Clientes Recientes
+    @ViewBuilder
+    private var recentClientsSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Clientes recientes")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+                Button(action: onGoToClients) {
+                    HStack(spacing: 2) {
+                        Text("Ver todos")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color(hex: "C4B5FD"))
+                }
+            }
+            
+            if pbManager.trainerClients.isEmpty {
+                Text("No tienes clientes registrados todavía.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color.white.opacity(0.03))
+                    .cornerRadius(14)
+            } else {
+                ForEach(pbManager.trainerClients.prefix(3)) { client in
+                    NavigationLink(destination: TrainerClientDetailView(client: client)) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(hex: "2563EB"))
+                                    .frame(width: 44, height: 44)
+                                Text(client.initials)
+                                    .font(.system(size: 15, weight: .heavy))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(client.displayName)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text(client.email)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            Spacer()
+                            
+                            Text(client.isActive ? "activo" : "inactivo")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(client.isActive ? Color(hex: "34D399") : .gray)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background((client.isActive ? Color(hex: "059669") : Color.gray).opacity(0.2))
+                                .cornerRadius(12)
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.gray.opacity(0.6))
+                        }
+                        .padding(12)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(16)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Últimos Archivos Recibidos
+    @ViewBuilder
+    private var recentUploadsSection: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Últimos archivos recibidos")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+                Button(action: onGoToGallery) {
+                    HStack(spacing: 2) {
+                        Text("Ver todos")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color(hex: "C4B5FD"))
+                }
+            }
+            
+            if pbManager.trainerUploads.isEmpty {
+                Text("No has recibido fotos ni vídeos todavía.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color.white.opacity(0.03))
+                    .cornerRadius(14)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(pbManager.trainerUploads.prefix(4)) { upload in
+                        NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ZStack(alignment: .topTrailing) {
+                                    if let fileName = upload.file,
+                                       let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                                        if upload.isVideo {
+                                            GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                                .frame(height: 100)
+                                                .cornerRadius(10)
+                                        } else {
+                                            GymImageView(url: url, authToken: pbManager.authToken)
+                                                .frame(height: 100)
+                                                .cornerRadius(10)
+                                                .clipped()
+                                        }
+                                    }
+                                    
+                                    // Punto morado indicador de nuevo
+                                    if upload.seen_by_admin != true {
+                                        Circle()
+                                            .fill(Color(hex: "A78BFA"))
+                                            .frame(width: 8, height: 8)
+                                            .padding(6)
+                                    }
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(upload.clientDisplayName)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                    Text(upload.formattedUploadDate)
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.horizontal, 4)
+                            }
+                            .padding(8)
+                            .background(Color.white.opacity(0.04))
+                            .cornerRadius(14)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 2. PESTAÑA CLIENTES (TRAINER CLIENTS VIEW)
+
+@MainActor
+struct TrainerClientsView: View {
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    @State private var searchText: String = ""
+    @State private var statusFilter: String = "Todos" // "Todos", "Activo", "Inactivo"
+    @State private var showNewClientSheet: Bool = false
+    
+    var filteredClients: [GymUser] {
+        pbManager.trainerClients.filter { client in
+            let matchesSearch = searchText.isEmpty ||
+                client.displayName.localizedCaseInsensitiveContains(searchText) ||
+                client.email.localizedCaseInsensitiveContains(searchText)
+            
+            let matchesStatus: Bool
+            if statusFilter == "Activo" {
+                matchesStatus = client.isActive
+            } else if statusFilter == "Inactivo" {
+                matchesStatus = !client.isActive
+            } else {
+                matchesStatus = true
+            }
+            return matchesSearch && matchesStatus
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(spacing: 0) {
+                    TrainerHeaderView(title: "Clientes")
+                    
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Cabecera con Conteo y Botón "+ Nuevo"
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Clientes")
+                                        .font(.system(size: 22, weight: .black))
+                                        .foregroundColor(.white)
+                                    Text("\(pbManager.trainerClients.count) registrados")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                
+                                Button(action: {
+                                    showNewClientSheet = true
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 14, weight: .bold))
+                                        Text("Nuevo")
+                                            .font(.system(size: 14, weight: .bold))
+                                    }
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color(hex: "A78BFA"))
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            // Barra de búsqueda
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.gray)
+                                TextField("Buscar cliente...", text: $searchText)
+                                    .foregroundColor(.white)
+                                    .textInputAutocapitalization(.never)
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(14)
+                            
+                            // Filtros de píldoras
+                            HStack(spacing: 8) {
+                                ForEach(["Todos", "Activo", "Inactivo"], id: \.self) { pill in
+                                    let isSelected = statusFilter == pill
+                                    Button(action: {
+                                        let generator = UIImpactFeedbackGenerator(style: .light)
+                                        generator.impactOccurred()
+                                        statusFilter = pill
+                                    }) {
+                                        Text(pill)
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(isSelected ? .black : .white.opacity(0.8))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 7)
+                                            .background(isSelected ? Color(hex: "A78BFA") : Color.white.opacity(0.08))
+                                            .cornerRadius(20)
+                                    }
+                                }
+                            }
+                            
+                            // Lista de Clientes
+                            if filteredClients.isEmpty {
+                                Text(searchText.isEmpty ? "No tienes clientes aún." : "No se encontraron clientes con esa búsqueda.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 20)
+                            } else {
+                                ForEach(filteredClients) { client in
+                                    NavigationLink(destination: TrainerClientDetailView(client: client)) {
+                                        HStack(spacing: 14) {
+                                            ZStack {
+                                                Circle()
+                                                    .fill(Color(hex: "2563EB"))
+                                                    .frame(width: 48, height: 48)
+                                                Text(client.initials)
+                                                    .font(.system(size: 16, weight: .heavy))
+                                                    .foregroundColor(.white)
+                                            }
+                                            
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(client.displayName)
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                Text(client.email)
+                                                    .font(.system(size: 13))
+                                                    .foregroundColor(.gray)
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            Text(client.isActive ? "activo" : "inactivo")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundColor(client.isActive ? Color(hex: "34D399") : .gray)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background((client.isActive ? Color(hex: "059669") : Color.gray).opacity(0.2))
+                                                .cornerRadius(12)
+                                            
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 14, weight: .semibold))
+                                                .foregroundColor(.gray.opacity(0.6))
+                                        }
+                                        .padding(14)
+                                        .background(Color.white.opacity(0.04))
+                                        .cornerRadius(18)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 80)
+                    }
+                    .refreshable {
+                        await pbManager.fetchTrainerClients()
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+            .sheet(isPresented: $showNewClientSheet) {
+                TrainerCreateClientSheet()
+            }
+        }
+    }
+}
+
+// MARK: - Detalle del Cliente (Asignar Rutina, Dejar Nota, Ver Historial)
+
+@MainActor
+struct TrainerClientDetailView: View {
+    let client: GymUser
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var clientUploads: [GymProgressUpload] = []
+    @State private var clientNotesList: [GymClientNote] = []
+    @State private var newNoteText: String = ""
+    @State private var isSendingNote: Bool = false
+    @State private var selectedRoutineToAssign: String = ""
+    @State private var isAssigningRoutine: Bool = false
+    @State private var alertMessage: String? = nil
+    @State private var showAlert: Bool = false
+    
+    var body: some View {
+        ZStack {
+            AppBackgroundView()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Tarjeta Principal del Cliente
+                    HStack(spacing: 16) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "2563EB"))
+                                .frame(width: 60, height: 60)
+                            Text(client.initials)
+                                .font(.system(size: 20, weight: .heavy))
+                                .foregroundColor(.white)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(client.displayName)
+                                .font(.system(size: 20, weight: .heavy))
+                                .foregroundColor(.white)
+                            Text(client.email)
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                            Text("Registrado: \(client.formattedJoinedDate)")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(18)
+                    
+                    // Asignar Rutina a este Cliente
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Asignar Rutina")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        if pbManager.trainerRoutines.isEmpty {
+                            Text("No tienes rutinas creadas todavía para asignar.")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        } else {
+                            HStack {
+                                Picker("Seleccionar Rutina", selection: $selectedRoutineToAssign) {
+                                    Text("Seleccionar Rutina...").tag("")
+                                    ForEach(pbManager.trainerRoutines) { r in
+                                        Text(r.name).tag(r.id)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .tint(Color(hex: "A78BFA"))
+                                .padding(8)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(12)
+                                
+                                Button(action: assignRoutine) {
+                                    if isAssigningRoutine {
+                                        ProgressView().tint(.black)
+                                    } else {
+                                        Text("Asignar")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(.black)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(hex: "A78BFA"))
+                                .cornerRadius(12)
+                                .disabled(selectedRoutineToAssign.isEmpty || isAssigningRoutine)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(18)
+                    
+                    // Dejar Nota / Feedback
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Dejar Nota al Cliente")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        TextField("Ej: Muy buena técnica en peso muerto...", text: $newNoteText, axis: .vertical)
+                            .lineLimit(3...5)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                        
+                        Button(action: sendNote) {
+                            HStack {
+                                if isSendingNote {
+                                    ProgressView().tint(.black)
+                                } else {
+                                    Image(systemName: "paperplane.fill")
+                                    Text("Enviar Nota")
+                                        .fontWeight(.bold)
+                                }
+                            }
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color(hex: "A78BFA"))
+                            .cornerRadius(12)
+                        }
+                        .disabled(newNoteText.trimmingCharacters(in: .whitespaces).isEmpty || isSendingNote)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(18)
+                    
+                    // Archivos de Progreso de este Cliente
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Entregas de este cliente (\(clientUploads.count))")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        if clientUploads.isEmpty {
+                            Text("Este cliente aún no ha subido fotos ni vídeos.")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        } else {
+                            ForEach(clientUploads) { upload in
+                                NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
+                                    HStack(spacing: 12) {
+                                        if let fileName = upload.file,
+                                           let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                                            if upload.isVideo {
+                                                GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                                    .frame(width: 80, height: 60)
+                                                    .cornerRadius(8)
+                                            } else {
+                                                GymImageView(url: url, authToken: pbManager.authToken)
+                                                    .frame(width: 80, height: 60)
+                                                    .cornerRadius(8)
+                                            }
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(upload.note ?? "Sin comentario")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundColor(.white)
+                                                .lineLimit(1)
+                                            Text(upload.formattedUploadDate)
+                                                .font(.system(size: 11))
+                                                .foregroundColor(.gray)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Text(upload.seen_by_admin == true ? "Visto" : "Nuevo")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundColor(upload.seen_by_admin == true ? .gray : Color(hex: "A78BFA"))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.white.opacity(0.06))
+                                            .cornerRadius(8)
+                                    }
+                                    .padding(10)
+                                    .background(Color.white.opacity(0.03))
+                                    .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(18)
+                }
+                .padding()
+                .padding(.bottom, 60)
+            }
+        }
+        .navigationTitle(client.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            loadClientData()
+        }
+        .alert("Aviso", isPresented: $showAlert) {
+            Button("Aceptar", role: .cancel) {}
+        } message: {
+            Text(alertMessage ?? "")
+        }
+    }
+    
+    private func loadClientData() {
+        self.clientUploads = pbManager.trainerUploads.filter { $0.client == client.id }
+    }
+    
+    private func sendNote() {
+        isSendingNote = true
+        Task {
+            let ok = await pbManager.sendNoteToClient(clientId: client.id, content: newNoteText)
+            await MainActor.run {
+                isSendingNote = false
+                if ok {
+                    newNoteText = ""
+                    alertMessage = "Nota enviada al cliente con éxito."
+                    showAlert = true
+                } else {
+                    alertMessage = "No se pudo enviar la nota."
+                    showAlert = true
+                }
+            }
+        }
+    }
+    
+    private func assignRoutine() {
+        guard !selectedRoutineToAssign.isEmpty else { return }
+        isAssigningRoutine = true
+        Task {
+            let ok = await pbManager.assignRoutineToClient(clientId: client.id, routineId: selectedRoutineToAssign)
+            await MainActor.run {
+                isAssigningRoutine = false
+                if ok {
+                    alertMessage = "Rutina asignada correctamente."
+                    showAlert = true
+                } else {
+                    alertMessage = "Error al asignar la rutina."
+                    showAlert = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Modal Crear Nuevo Cliente
+
+@MainActor
+struct TrainerCreateClientSheet: View {
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var name: String = ""
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var isCreating: Bool = false
+    @State private var errorText: String? = nil
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Crear Nuevo Alumno")
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundColor(.white)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Nombre completo")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextField("Carlos Martínez", text: $name)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Email de acceso")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextField("alumno@gym.com", text: $email)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Contraseña inicial")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        SecureField("••••••••", text: $password)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    if let err = errorText {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: createClient) {
+                        HStack {
+                            if isCreating {
+                                ProgressView().tint(.black)
+                            } else {
+                                Text("Crear y Asignar a mi Cuenta")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "A78BFA"))
+                        .cornerRadius(14)
+                    }
+                    .disabled(name.isEmpty || email.isEmpty || password.count < 8 || isCreating)
+                }
+                .padding(20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private func createClient() {
+        isCreating = true
+        errorText = nil
+        Task {
+            let ok = await pbManager.createClient(email: email, name: name, password: password)
+            await MainActor.run {
+                isCreating = false
+                if ok {
+                    dismiss()
+                } else {
+                    errorText = "Error al crear cliente. Verifica que el email no esté repetido."
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 3. PESTAÑA RUTINAS (TRAINER ROUTINES VIEW)
+
+@MainActor
+struct TrainerRoutinesView: View {
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    @State private var searchText: String = ""
+    @State private var showCreateRoutineSheet: Bool = false
+    @State private var routineToDelete: GymRoutine? = nil
+    @State private var showDeleteConfirm: Bool = false
+    
+    var filteredRoutines: [GymRoutine] {
+        if searchText.isEmpty {
+            return pbManager.trainerRoutines
+        }
+        return pbManager.trainerRoutines.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            ($0.description?.localizedCaseInsensitiveContains(searchText) ?? false)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(spacing: 0) {
+                    TrainerHeaderView(title: "Rutinas")
+                    
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Cabecera con Conteo y Botón "+ Crear"
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Rutinas")
+                                        .font(.system(size: 22, weight: .black))
+                                        .foregroundColor(.white)
+                                    Text("\(pbManager.trainerRoutines.count) disponibles")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                
+                                Button(action: {
+                                    showCreateRoutineSheet = true
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 14, weight: .bold))
+                                        Text("Crear")
+                                            .font(.system(size: 14, weight: .bold))
+                                    }
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Color(hex: "A78BFA"))
+                                    .cornerRadius(12)
+                                }
+                            }
+                            
+                            // Barra de Búsqueda
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.gray)
+                                TextField("Buscar rutina...", text: $searchText)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(14)
+                            
+                            // Lista de Rutinas
+                            if filteredRoutines.isEmpty {
+                                Text(searchText.isEmpty ? "No tienes rutinas creadas todavía." : "No se encontraron rutinas.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 20)
+                            } else {
+                                ForEach(filteredRoutines) { routine in
+                                    NavigationLink(destination: TrainerRoutineDetailView(routine: routine)) {
+                                        HStack(spacing: 14) {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .fill(Color(hex: "7C3AED"))
+                                                    .frame(width: 48, height: 48)
+                                                Image(systemName: "dumbbell.fill")
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(.white)
+                                            }
+                                            
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(routine.name)
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundColor(.white)
+                                                
+                                                if let desc = routine.description, !desc.isEmpty {
+                                                    Text(desc)
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(.gray)
+                                                        .lineLimit(1)
+                                                }
+                                                
+                                                HStack(spacing: 4) {
+                                                    Text(routine.level ?? "Intermedio")
+                                                    Text("•")
+                                                    Text("\(routine.daysCount ?? 0) días")
+                                                }
+                                                .font(.system(size: 11))
+                                                .foregroundColor(.gray)
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            // Acciones: Borrar
+                                            Button(action: {
+                                                routineToDelete = routine
+                                                showDeleteConfirm = true
+                                            }) {
+                                                Image(systemName: "trash")
+                                                    .font(.system(size: 15))
+                                                    .foregroundColor(.gray)
+                                                    .padding(8)
+                                            }
+                                            
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 14, weight: .semibold))
+                                                .foregroundColor(.gray.opacity(0.6))
+                                        }
+                                        .padding(14)
+                                        .background(Color.white.opacity(0.04))
+                                        .cornerRadius(18)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 80)
+                    }
+                    .refreshable {
+                        await pbManager.fetchTrainerRoutines()
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+            .sheet(isPresented: $showCreateRoutineSheet) {
+                TrainerCreateRoutineSheet()
+            }
+            .alert("¿Eliminar rutina?", isPresented: $showDeleteConfirm) {
+                Button("Cancelar", role: .cancel) {}
+                Button("Eliminar", role: .destructive) {
+                    if let r = routineToDelete {
+                        Task { _ = await pbManager.deleteRoutine(routineId: r.id) }
+                    }
+                }
+            } message: {
+                Text("Se eliminará la rutina '\(routineToDelete?.name ?? "")' permanentemente.")
+            }
+        }
+    }
+}
+
+// MARK: - Detalle de Rutina (Días y Ejercicios)
+
+@MainActor
+struct TrainerRoutineDetailView: View {
+    let routine: GymRoutine
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @State private var days: [GymRoutineDay] = []
+    @State private var isLoading: Bool = true
+    @State private var showAddDaySheet: Bool = false
+    
+    var body: some View {
+        ZStack {
+            AppBackgroundView()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    // Header de la rutina
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(routine.name)
+                            .font(.system(size: 24, weight: .black))
+                            .foregroundColor(.white)
+                        if let desc = routine.description {
+                            Text(desc)
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                        HStack(spacing: 8) {
+                            Text(routine.level ?? "General")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color(hex: "A78BFA"))
+                                .cornerRadius(8)
+                            Text("\(days.count) días configurados")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(18)
+                    
+                    // Lista de Días
+                    HStack {
+                        Text("Días de entrenamiento")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Button(action: { showAddDaySheet = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                Text("Añadir Día")
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: "A78BFA"))
+                            .cornerRadius(10)
+                        }
+                    }
+                    
+                    if isLoading {
+                        ProgressView().tint(.white)
+                    } else if days.isEmpty {
+                        Text("Esta rutina no tiene días configurados todavía.")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .padding()
+                    } else {
+                        ForEach(days) { day in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(day.title)
+                                    .font(.system(size: 16, weight: .heavy))
+                                    .foregroundColor(Color(hex: "C4B5FD"))
+                                
+                                if let content = day.content, !content.isEmpty {
+                                    Text(content)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.white.opacity(0.85))
+                                }
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.white.opacity(0.03))
+                            .cornerRadius(14)
+                        }
+                    }
+                }
+                .padding()
+                .padding(.bottom, 60)
+            }
+        }
+        .navigationTitle(routine.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            loadDays()
+        }
+        .sheet(isPresented: $showAddDaySheet) {
+            TrainerAddRoutineDaySheet(routineId: routine.id) {
+                loadDays()
+            }
+        }
+    }
+    
+    private func loadDays() {
+        isLoading = true
+        Task {
+            let loaded = await pbManager.fetchRoutineDaysForRoutine(routineId: routine.id)
+            await MainActor.run {
+                self.days = loaded
+                self.isLoading = false
+            }
+        }
+    }
+}
+
+// MARK: - Modal Crear Rutina
+
+@MainActor
+struct TrainerCreateRoutineSheet: View {
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var name: String = ""
+    @State private var description: String = ""
+    @State private var level: String = "Intermedio"
+    @State private var isCreating: Bool = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Crear Nueva Rutina")
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundColor(.white)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Nombre de la rutina")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextField("Ej: Push Pull Legs", text: $name)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Descripción")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextField("Rutina de hipertrofia y fuerza...", text: $description, axis: .vertical)
+                            .lineLimit(2...4)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Nivel")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Picker("Nivel", selection: $level) {
+                            ForEach(["Principiante", "Intermedio", "Avanzado"], id: \.self) {
+                                Text($0).tag($0)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: createRoutine) {
+                        HStack {
+                            if isCreating {
+                                ProgressView().tint(.black)
+                            } else {
+                                Text("Guardar Rutina")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "A78BFA"))
+                        .cornerRadius(14)
+                    }
+                    .disabled(name.isEmpty || isCreating)
+                }
+                .padding(20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private func createRoutine() {
+        isCreating = true
+        Task {
+            let ok = await pbManager.createRoutine(name: name, description: description, level: level)
+            await MainActor.run {
+                isCreating = false
+                if ok { dismiss() }
+            }
+        }
+    }
+}
+
+// MARK: - Modal Añadir Día a Rutina
+
+@MainActor
+struct TrainerAddRoutineDaySheet: View {
+    let routineId: String
+    var onSaved: () -> Void = {}
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var dayName: String = ""
+    @State private var content: String = ""
+    @State private var isSaving: Bool = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Añadir Día de Entrenamiento")
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundColor(.white)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Nombre del día")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextField("Ej: Día 1: Pecho y Tríceps", text: $dayName)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Contenido y ejercicios")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextEditor(text: $content)
+                            .frame(height: 150)
+                            .padding(8)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: saveDay) {
+                        HStack {
+                            if isSaving {
+                                ProgressView().tint(.black)
+                            } else {
+                                Text("Guardar Día")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: "A78BFA"))
+                        .cornerRadius(14)
+                    }
+                    .disabled(dayName.isEmpty || isSaving)
+                }
+                .padding(20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private func saveDay() {
+        isSaving = true
+        Task {
+            let ok = await pbManager.addRoutineDay(routineId: routineId, dayName: dayName, content: content)
+            await MainActor.run {
+                isSaving = false
+                if ok {
+                    onSaved()
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 4. PESTAÑA GALERÍA (TRAINER GALLERY VIEW)
+
+@MainActor
+struct TrainerGalleryView: View {
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    
+    @State private var filterState: String = "Todos" // "Todos", "Pendiente", "Visto"
+    
+    var filteredUploads: [GymProgressUpload] {
+        pbManager.trainerUploads.filter { upload in
+            if filterState == "Pendiente" {
+                return upload.seen_by_admin != true
+            } else if filterState == "Visto" {
+                return upload.seen_by_admin == true
+            }
+            return true
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(spacing: 0) {
+                    TrainerHeaderView(title: "Galería")
+                    
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            // Cabecera
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Galería")
+                                    .font(.system(size: 22, weight: .black))
+                                    .foregroundColor(.white)
+                                Text("\(pbManager.pendingReviewsCount) pendientes de revisión")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            // Píldoras de filtro (Todos, Pendiente, Visto)
+                            HStack(spacing: 8) {
+                                ForEach(["Todos", "Pendiente", "Visto"], id: \.self) { pill in
+                                    let isSelected = filterState == pill
+                                    Button(action: {
+                                        let generator = UIImpactFeedbackGenerator(style: .light)
+                                        generator.impactOccurred()
+                                        filterState = pill
+                                    }) {
+                                        Text(pill)
+                                            .font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(isSelected ? .black : .white.opacity(0.8))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 7)
+                                            .background(isSelected ? Color(hex: "A78BFA") : Color.white.opacity(0.08))
+                                            .cornerRadius(20)
+                                    }
+                                }
+                            }
+                            
+                            // Lista de Entregas con Tarjeta Grande
+                            if filteredUploads.isEmpty {
+                                Text("No hay archivos en esta categoría.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 20)
+                            } else {
+                                ForEach(filteredUploads) { upload in
+                                    trainerUploadCard(upload: upload)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 80)
+                    }
+                    .refreshable {
+                        await pbManager.fetchTrainerUploads()
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+        }
+    }
+    
+    // Tarjeta de la Galería tal cual la captura 4
+    @ViewBuilder
+    private func trainerUploadCard(upload: GymProgressUpload) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Media (Foto o Vídeo) con etiqueta "Nuevo"
+            ZStack(alignment: .topLeading) {
+                if let fileName = upload.file,
+                   let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                    NavigationLink(destination: TrainerUploadDetailView(upload: upload)) {
+                        if upload.isVideo {
+                            GymVideoThumbnailView(url: url, authToken: pbManager.authToken)
+                                .frame(height: 200)
+                                .cornerRadius(14)
+                        } else {
+                            GymImageView(url: url, authToken: pbManager.authToken)
+                                .frame(height: 200)
+                                .cornerRadius(14)
+                                .clipped()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                // Etiqueta morada "Nuevo"
+                if upload.seen_by_admin != true {
+                    Text("Nuevo")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "A78BFA"))
+                        .cornerRadius(8)
+                        .padding(10)
+                }
+            }
+            
+            // Autor e info
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "2563EB"))
+                        .frame(width: 40, height: 40)
+                    Text(upload.clientInitials)
+                        .font(.system(size: 14, weight: .heavy))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(upload.clientDisplayName)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(upload.formattedUploadDate)
+                        .font(.system(size: 11))
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+            }
+            
+            // Nota del cliente si existe
+            if let note = upload.notes, !note.isEmpty {
+                Text(note)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 4)
+            }
+            
+            // Botón "Marcar como visto"
+            if upload.seen_by_admin != true {
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    Task {
+                        _ = await pbManager.markUploadAsSeen(uploadId: upload.id)
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye.fill")
+                        Text("Marcar como visto")
+                            .fontWeight(.bold)
+                    }
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color(hex: "C4B5FD"))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Color(hex: "7C3AED").opacity(0.2))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(hex: "7C3AED").opacity(0.4), lineWidth: 1)
+                    )
+                }
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(Color(hex: "34D399"))
+                    Text("Revisado por ti")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.gray)
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(18)
+    }
+}
+
+// MARK: - Vista Detalle de Entrega (Reproducir y Enviar Feedback)
+
+@MainActor
+struct TrainerUploadDetailView: View {
+    let upload: GymProgressUpload
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var feedbackText: String = ""
+    @State private var isSendingFeedback: Bool = false
+    @State private var feedbackSentSuccess: Bool = false
+    
+    var body: some View {
+        ZStack {
+            AppBackgroundView()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    // Visor de foto o vídeo
+                    if let fileName = upload.file,
+                       let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
+                        if upload.isVideo {
+                            FullScreenVideoPlayer(url: url, authToken: pbManager.authToken)
+                                .frame(height: 320)
+                                .cornerRadius(16)
+                        } else {
+                            GymImageView(url: url, authToken: pbManager.authToken)
+                                .frame(maxHeight: 320)
+                                .cornerRadius(16)
+                        }
+                    }
+                    
+                    // Datos del cliente
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "2563EB"))
+                                .frame(width: 48, height: 48)
+                            Text(upload.clientInitials)
+                                .font(.system(size: 16, weight: .heavy))
+                                .foregroundColor(.white)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(upload.clientDisplayName)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                            Text(upload.formattedUploadDate)
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(14)
+                    
+                    // Comentario del cliente
+                    if let note = upload.notes, !note.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Comentario del alumno:")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.gray)
+                            Text("\"\(note)\"")
+                                .font(.system(size: 15))
+                                .foregroundColor(.white)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(14)
+                    }
+                    
+                    // Feedback del Entrenador
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Tu Feedback / Corrección:")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(Color(hex: "C4B5FD"))
+                        
+                        if let prevResp = upload.admin_response, !prevResp.isEmpty {
+                            Text("Feedback anterior: \(prevResp)")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        TextField("Escribe corrección técnica para el alumno...", text: $feedbackText, axis: .vertical)
+                            .lineLimit(3...5)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                        
+                        Button(action: sendFeedback) {
+                            HStack {
+                                if isSendingFeedback {
+                                    ProgressView().tint(.black)
+                                } else {
+                                    Image(systemName: "paperplane.fill")
+                                    Text("Enviar Corrección al Alumno")
+                                        .fontWeight(.bold)
+                                }
+                            }
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color(hex: "A78BFA"))
+                            .cornerRadius(12)
+                        }
+                        .disabled(feedbackText.trimmingCharacters(in: .whitespaces).isEmpty || isSendingFeedback)
+                        
+                        if feedbackSentSuccess {
+                            Text("¡Feedback guardado y notificado al alumno!")
+                                .font(.caption)
+                                .foregroundColor(Color(hex: "34D399"))
+                        }
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(14)
+                }
+                .padding()
+                .padding(.bottom, 60)
+            }
+        }
+        .navigationTitle("Revisión de Entrega")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let existing = upload.admin_response {
+                feedbackText = existing
+            }
+        }
+    }
+    
+    private func sendFeedback() {
+        isSendingFeedback = true
+        Task {
+            let ok = await pbManager.sendAdminFeedback(uploadId: upload.id, responseText: feedbackText)
+            await MainActor.run {
+                isSendingFeedback = false
+                if ok {
+                    feedbackSentSuccess = true
+                }
+            }
+        }
+    }
+}

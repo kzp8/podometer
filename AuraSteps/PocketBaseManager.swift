@@ -39,6 +39,15 @@ public final class PocketBaseManager: ObservableObject {
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String?
     
+    // Propiedades exclusivas de Entrenador (Admin)
+    @Published public var trainerClients: [GymUser] = []
+    @Published public var trainerRoutines: [GymRoutine] = []
+    @Published public var trainerUploads: [GymProgressUpload] = []
+    
+    public var pendingReviewsCount: Int {
+        trainerUploads.filter { $0.seen_by_admin != true }.count
+    }
+    
     public var isLoggedIn: Bool {
         return authToken != nil && currentUser != nil
     }
@@ -148,6 +157,9 @@ public final class PocketBaseManager: ObservableObject {
         self.completedDayIds = []
         self.progressUploads = []
         self.clientNotes = []
+        self.trainerClients = []
+        self.trainerRoutines = []
+        self.trainerUploads = []
         self.streak = 0
         self.errorMessage = nil
     }
@@ -208,9 +220,14 @@ public final class PocketBaseManager: ObservableObject {
         
         _ = await refreshAuthSession()
         await fetchFileToken()
-        await fetchActiveRoutine(forUserId: user.id)
-        await fetchProgressUploads(forUserId: user.id)
-        await fetchClientNotes(forUserId: user.id)
+        
+        if user.isAdmin {
+            await fetchTrainerAllData()
+        } else {
+            await fetchActiveRoutine(forUserId: user.id)
+            await fetchProgressUploads(forUserId: user.id)
+            await fetchClientNotes(forUserId: user.id)
+        }
     }
     
     public func fetchActiveRoutine(forUserId userId: String) async {
@@ -814,6 +831,323 @@ public final class PocketBaseManager: ObservableObject {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1.0, repeats: false)
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request)
+    }
+    
+    // MARK: - API Funciones del Entrenador (Multi-Tenant & Aislamiento)
+    
+    public func fetchTrainerAllData() async {
+        guard let token = authToken, let user = currentUser, user.isAdmin else { return }
+        
+        await fetchTrainerClients()
+        await fetchTrainerRoutines()
+        await fetchTrainerUploads()
+    }
+    
+    public func fetchTrainerClients() async {
+        guard let token = authToken, let user = currentUser, user.isAdmin else { return }
+        
+        // Clientes asignados a este entrenador (o rol client)
+        let filterStr = "trainer = \"\(user.id)\" || (role = \"client\" && (trainer = \"\" || trainer = null))".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records?filter=\(filterStr)&sort=-created") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymUser>.self, from: data) {
+            self.trainerClients = listResp.items.filter { $0.id != user.id }
+        }
+    }
+    
+    public func fetchTrainerRoutines() async {
+        guard let token = authToken, let user = currentUser, user.isAdmin else { return }
+        
+        // Rutinas de este entrenador o rutinas globales sin entrenador
+        let filterStr = "trainer = \"\(user.id)\" || trainer = \"\" || trainer = null".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records?filter=\(filterStr)&sort=-created") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymRoutine>.self, from: data) {
+            
+            var routinesWithDays = listResp.items
+            // Cargar conteo de días para cada rutina
+            for i in 0..<routinesWithDays.count {
+                let rId = routinesWithDays[i].id
+                let daysFilter = "routine = \"\(rId)\"".pocketBaseQueryEncoded
+                if let daysURL = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(daysFilter)&fields=id") {
+                    var dReq = URLRequest(url: daysURL)
+                    dReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    if let (dData, _) = try? await URLSession.shared.data(for: dReq),
+                       let dList = try? JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: dData) {
+                        routinesWithDays[i].daysCount = dList.totalItems
+                    }
+                }
+            }
+            self.trainerRoutines = routinesWithDays
+        }
+    }
+    
+    public func fetchTrainerUploads() async {
+        guard let token = authToken, let user = currentUser, user.isAdmin else { return }
+        
+        // Asegurar que solo vemos entregas de clientes asignados a este entrenador
+        // expand=client para tener el nombre, avatar y detalles del cliente
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records?expand=client&sort=-uploaded_at") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data) {
+            
+            // Filtro local estricto de seguridad multi-tenant:
+            // Solo incluir si el cliente tiene trainer = user.id, o si es de un cliente sin entrenador
+            let myClientIds = Set(self.trainerClients.map { $0.id })
+            self.trainerUploads = listResp.items.filter { item in
+                guard let clientId = item.client else { return false }
+                if let clientObj = item.expand?.client {
+                    if let cTrainer = clientObj.trainer, !cTrainer.isEmpty {
+                        return cTrainer == user.id
+                    }
+                }
+                return myClientIds.contains(clientId) || myClientIds.isEmpty
+            }
+        }
+    }
+    
+    public func markUploadAsSeen(uploadId: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records/\(uploadId)") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["seen_by_admin": true]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            if let idx = trainerUploads.firstIndex(where: { $0.id == uploadId }) {
+                trainerUploads[idx].seen_by_admin = true
+            }
+            return true
+        }
+        return false
+    }
+    
+    public func createClient(email: String, name: String, password: String) async -> Bool {
+        guard let token = authToken, let user = currentUser, user.isAdmin else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "email": email,
+            "password": password,
+            "passwordConfirm": password,
+            "name": name,
+            "role": "client",
+            "trainer": user.id,
+            "status": "activo"
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let newClient = try? JSONDecoder().decode(GymUser.self, from: data) {
+            self.trainerClients.insert(newClient, at: 0)
+            return true
+        }
+        return false
+    }
+    
+    public func createRoutine(name: String, description: String, level: String) async -> Bool {
+        guard let token = authToken, let user = currentUser, user.isAdmin else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "name": name,
+            "description": description,
+            "level": level,
+            "trainer": user.id
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           var newRoutine = try? JSONDecoder().decode(GymRoutine.self, from: data) {
+            newRoutine.daysCount = 0
+            self.trainerRoutines.insert(newRoutine, at: 0)
+            return true
+        }
+        return false
+    }
+    
+    public func deleteRoutine(routineId: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(routineId)") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            self.trainerRoutines.removeAll { $0.id == routineId }
+            return true
+        }
+        return false
+    }
+    
+    public func fetchRoutineDaysForRoutine(routineId: String) async -> [GymRoutineDay] {
+        guard let token = authToken else { return [] }
+        let filterStr = "routine = \"\(routineId)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(filterStr)") else { return [] }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: data) {
+            return listResp.items
+        }
+        return []
+    }
+    
+    public func addRoutineDay(routineId: String, dayName: String, content: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "routine": routineId,
+            "day_name": dayName,
+            "content": content
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            if let idx = trainerRoutines.firstIndex(where: { $0.id == routineId }) {
+                trainerRoutines[idx].daysCount = (trainerRoutines[idx].daysCount ?? 0) + 1
+            }
+            return true
+        }
+        return false
+    }
+    
+    public func sendNoteToClient(clientId: String, content: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "client": clientId,
+            "content": content
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            return true
+        }
+        return false
+    }
+    
+    public func assignRoutineToClient(clientId: String, routineId: String) async -> Bool {
+        guard let token = authToken else { return false }
+        
+        // 1. Desactivar asignaciones previas si existen
+        let filterStr = "client = \"\(clientId)\" && active = true".pocketBaseQueryEncoded
+        if let listURL = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)") {
+            var getReq = URLRequest(url: listURL)
+            getReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            if let (data, _) = try? await URLSession.shared.data(for: getReq),
+               let list = try? JSONDecoder().decode(PocketBaseListResponse<ClientRoutineRecord>.self, from: data) {
+                for item in list.items {
+                    if let patchURL = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records/\(item.id)") {
+                        var pReq = URLRequest(url: patchURL)
+                        pReq.httpMethod = "PATCH"
+                        pReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                        pReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        pReq.httpBody = try? JSONSerialization.data(withJSONObject: ["active": false])
+                        _ = try? await URLSession.shared.data(for: pReq)
+                    }
+                }
+            }
+        }
+        
+        // 2. Crear nueva asignación activa
+        guard let createURL = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records") else { return false }
+        var req = URLRequest(url: createURL)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "client": clientId,
+            "routine": routineId,
+            "active": true
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            return true
+        }
+        return false
+    }
+    
+    public func sendAdminFeedback(uploadId: String, responseText: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records/\(uploadId)") else { return false }
+        
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let nowISO = formatter.string(from: Date())
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "seen_by_admin": true,
+            "admin_response": responseText,
+            "admin_response_at": nowISO
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            if let idx = trainerUploads.firstIndex(where: { $0.id == uploadId }) {
+                trainerUploads[idx].seen_by_admin = true
+                trainerUploads[idx].admin_response = responseText
+                trainerUploads[idx].admin_response_at = nowISO
+            }
+            return true
+        }
+        return false
     }
 }
 
