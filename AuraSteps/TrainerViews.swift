@@ -821,6 +821,7 @@ struct TrainerClientDetailView: View {
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.04))
         .cornerRadius(18)
     }
@@ -991,6 +992,7 @@ struct TrainerClientDetailView: View {
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.04))
         .cornerRadius(18)
     }
@@ -998,14 +1000,18 @@ struct TrainerClientDetailView: View {
     @ViewBuilder
     private var clientUploadsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Entregas de este cliente (\(clientUploads.count))")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(.white)
+            HStack {
+                Text("Entregas de este cliente (\(clientUploads.count))")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
             
             if clientUploads.isEmpty {
                 Text("Este cliente aún no ha subido fotos ni vídeos.")
                     .font(.caption)
                     .foregroundColor(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 let visibleUploads = Array(clientUploads.prefix(mediaLimit))
                 ForEach(visibleUploads) { upload in
@@ -1073,6 +1079,7 @@ struct TrainerClientDetailView: View {
             }
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.04))
         .cornerRadius(18)
     }
@@ -1101,11 +1108,17 @@ struct TrainerClientDetailView: View {
         isTogglingStatus = true
         let newStatus = isActive ? "inactivo" : "activo"
         Task {
-            let ok = await pbManager.setClientStatus(clientId: client.id, status: newStatus)
+            let res = await pbManager.setClientStatus(clientId: client.id, status: newStatus)
             await MainActor.run {
                 isTogglingStatus = false
-                if ok {
+                if res.success {
                     isActive = !isActive
+                    let estado = isActive ? "activado" : "desactivado"
+                    alertMessage = "Cliente \(estado) correctamente."
+                    showAlert = true
+                } else {
+                    alertMessage = res.message ?? "No se pudo cambiar el estado del cliente."
+                    showAlert = true
                 }
             }
         }

@@ -245,6 +245,7 @@ public final class PocketBaseManager: ObservableObject {
     public func refreshAllGymData() async {
         guard isLoggedIn, let user = currentUser else { return }
         
+        self.errorMessage = nil
         _ = await refreshAuthSession()
         await fetchFileToken()
         
@@ -261,8 +262,9 @@ public final class PocketBaseManager: ObservableObject {
         guard let token = authToken else { return }
         
         // Exactamente como en la web: client = "id" && active = true con expand = routine
+        // Añadimos sort=-id para obtener la rutina activa más reciente de forma fiable
         let filterStr = "client = \"\(userId)\" && active = true".pocketBaseQueryEncoded
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&expand=routine") else { return }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&expand=routine&sort=-id") else { return }
         
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -282,7 +284,7 @@ public final class PocketBaseManager: ObservableObject {
                 if let routine = firstAssignment.expand?.routine {
                     self.activeRoutine = routine
                     await fetchRoutineDays(routineId: routine.id)
-                } else {
+                } else if !firstAssignment.routine.isEmpty {
                     let routineId = firstAssignment.routine
                     await fetchSingleRoutine(routineId: routineId)
                     await fetchRoutineDays(routineId: routineId)
@@ -645,12 +647,27 @@ public final class PocketBaseManager: ObservableObject {
                 await fetchProgressUploads(forUserId: user.id)
                 return true
             } else if let httpResp = response as? HTTPURLResponse {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let message = json["message"] as? String {
-                    self.errorMessage = "Error (\(httpResp.statusCode)): \(message)"
-                } else {
-                    self.errorMessage = "Error al subir archivo (código \(httpResp.statusCode))."
+                var detail: String? = nil
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let dataDict = json["data"] as? [String: Any] {
+                        let fieldErrors = dataDict.compactMap { (key, val) -> String? in
+                            if let errObj = val as? [String: Any], let msg = errObj["message"] as? String {
+                                if key == "file" {
+                                    return "Archivo: \(msg)"
+                                }
+                                return "\(key): \(msg)"
+                            }
+                            return nil
+                        }
+                        if !fieldErrors.isEmpty {
+                            detail = fieldErrors.joined(separator: "\n")
+                        }
+                    }
+                    if detail == nil, let msg = json["message"] as? String {
+                        detail = msg
+                    }
                 }
+                self.errorMessage = detail ?? "Error al subir archivo (código \(httpResp.statusCode))."
             }
         } catch {
             self.errorMessage = "Error de conexión: \(error.localizedDescription)"
@@ -1003,7 +1020,7 @@ public final class PocketBaseManager: ObservableObject {
         do {
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard let httpResp = resp as? HTTPURLResponse else {
-                return (false, "Error de red.")
+                return (false, "Error de red al cambiar contraseña.")
             }
             if (200...299).contains(httpResp.statusCode) {
                 if let updatedClient = try? JSONDecoder().decode(GymUser.self, from: data),
@@ -1011,17 +1028,39 @@ public final class PocketBaseManager: ObservableObject {
                     trainerClients[idx] = updatedClient
                 }
                 return (true, "Contraseña modificada correctamente.")
+            } else if httpResp.statusCode == 404 {
+                return (false, "Permiso denegado por PocketBase (404). En la colección 'users' de PocketBase, debes configurar en API Rules -> Update Rule: id = @request.auth.id || @request.auth.role = \"admin\"")
             } else {
-                return (false, "Error al modificar la contraseña del cliente.")
+                var errDetail = "Error al modificar la contraseña (código \(httpResp.statusCode))."
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let dataDict = json["data"] as? [String: Any] {
+                        let fieldErrs = dataDict.compactMap { (k, v) -> String? in
+                            if let o = v as? [String: Any], let m = o["message"] as? String {
+                                return "\(k): \(m)"
+                            }
+                            return nil
+                        }
+                        if !fieldErrs.isEmpty {
+                            errDetail = fieldErrs.joined(separator: "\n")
+                        }
+                    } else if let m = json["message"] as? String {
+                        errDetail = m
+                    }
+                }
+                return (false, errDetail)
             }
         } catch {
             return (false, "Error de conexión: \(error.localizedDescription)")
         }
     }
     
-    public func setClientStatus(clientId: String, status: String) async -> Bool {
-        guard let token = authToken else { return false }
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(clientId)") else { return false }
+    public func setClientStatus(clientId: String, status: String) async -> (success: Bool, message: String?) {
+        guard let token = authToken, let user = currentUser, user.isAdmin else {
+            return (false, "No tienes permisos de administrador.")
+        }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(clientId)") else {
+            return (false, "URL no válida.")
+        }
         
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
@@ -1030,14 +1069,29 @@ public final class PocketBaseManager: ObservableObject {
         let body: [String: Any] = ["status": status]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
-        if let (_, resp) = try? await URLSession.shared.data(for: req),
-           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
-            if let idx = trainerClients.firstIndex(where: { $0.id == clientId }) {
-                trainerClients[idx].status = status
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let httpResp = resp as? HTTPURLResponse else {
+                return (false, "Error de conexión con el servidor.")
             }
-            return true
+            if (200...299).contains(httpResp.statusCode) {
+                if let idx = trainerClients.firstIndex(where: { $0.id == clientId }) {
+                    trainerClients[idx].status = status
+                }
+                return (true, nil)
+            } else if httpResp.statusCode == 404 {
+                return (false, "Permiso denegado por PocketBase (404). En la colección 'users' de PocketBase, debes configurar en API Rules -> Update Rule: id = @request.auth.id || @request.auth.role = \"admin\"")
+            } else {
+                var msg = "Error al actualizar estado (código \(httpResp.statusCode))."
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let m = json["message"] as? String {
+                    msg = m
+                }
+                return (false, msg)
+            }
+        } catch {
+            return (false, "Error de red: \(error.localizedDescription)")
         }
-        return false
     }
     
     public func createRoutine(name: String, description: String, level: String) async -> Bool {

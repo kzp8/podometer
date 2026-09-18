@@ -120,6 +120,30 @@ public struct GymRoutine: Identifiable, Codable, Sendable, Hashable {
     // Conteo local o expand opcional para días
     public var daysCount: Int?
     
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, level, trainer, daysCount
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
+        self.name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Rutina de entrenamiento"
+        self.description = try? container.decodeIfPresent(String.self, forKey: .description)
+        self.level = try? container.decodeIfPresent(String.self, forKey: .level)
+        self.trainer = try? container.decodeIfPresent(String.self, forKey: .trainer)
+        self.daysCount = try? container.decodeIfPresent(Int.self, forKey: .daysCount)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(level, forKey: .level)
+        try container.encodeIfPresent(trainer, forKey: .trainer)
+        try container.encodeIfPresent(daysCount, forKey: .daysCount)
+    }
+    
     public init(id: String, name: String, description: String? = nil, level: String? = nil, trainer: String? = nil, daysCount: Int? = nil) {
         self.id = id
         self.name = name
@@ -139,6 +163,26 @@ public struct GymRoutineDay: Identifiable, Codable, Sendable {
     
     public var title: String {
         day_name ?? "Día de entrenamiento"
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, routine, day_name, content
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
+        self.routine = try? container.decodeIfPresent(String.self, forKey: .routine)
+        self.day_name = try? container.decodeIfPresent(String.self, forKey: .day_name)
+        self.content = try? container.decodeIfPresent(String.self, forKey: .content)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(routine, forKey: .routine)
+        try container.encodeIfPresent(day_name, forKey: .day_name)
+        try container.encodeIfPresent(content, forKey: .content)
     }
     
     public init(id: String, routine: String? = nil, day_name: String? = nil, content: String? = nil) {
@@ -265,10 +309,58 @@ public struct ClientRoutineRecord: Identifiable, Codable, Sendable {
     public let routine: String
     public let active: Bool?
     public let expand: ClientRoutineExpand?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, client, routine, active, expand
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
+        self.client = (try? container.decodeIfPresent(String.self, forKey: .client)) ?? ""
+        self.routine = (try? container.decodeIfPresent(String.self, forKey: .routine)) ?? ""
+        self.active = try? container.decodeIfPresent(Bool.self, forKey: .active)
+        self.expand = try? container.decodeIfPresent(ClientRoutineExpand.self, forKey: .expand)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(client, forKey: .client)
+        try container.encode(routine, forKey: .routine)
+        try container.encodeIfPresent(active, forKey: .active)
+        try container.encodeIfPresent(expand, forKey: .expand)
+    }
+    
+    public init(id: String, client: String, routine: String, active: Bool? = true, expand: ClientRoutineExpand? = nil) {
+        self.id = id
+        self.client = client
+        self.routine = routine
+        self.active = active
+        self.expand = expand
+    }
 }
 
 public struct ClientRoutineExpand: Codable, Sendable {
     public let routine: GymRoutine?
+    
+    enum CodingKeys: String, CodingKey {
+        case routine
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.routine = try? container.decodeIfPresent(GymRoutine.self, forKey: .routine)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(routine, forKey: .routine)
+    }
+    
+    public init(routine: GymRoutine? = nil) {
+        self.routine = routine
+    }
 }
 
 /// Modelo que representa una nota dejada por el entrenador para el cliente (client_notes).

@@ -133,14 +133,19 @@ struct GymProgressUploadView: View {
                         }
                         
                         // Vista Previa de Selección
-                        if let _ = selectedData {
+                        if let data = selectedData {
                             HStack(spacing: 10) {
                                 Image(systemName: isVideo ? "video.circle.fill" : "photo.circle.fill")
                                     .foregroundColor(themeManager.accentColor)
-                                Text("Archivo listo: \(fileName)")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Archivo listo: \(fileName)")
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                    Text(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))
+                                        .font(.caption2)
+                                        .foregroundColor(themeManager.accentColor)
+                                }
                                 Spacer()
                                 Button("Quitar") {
                                     selectedData = nil
@@ -241,10 +246,19 @@ struct GymProgressUploadView: View {
                     // 1. Intentar cargar como vídeo
                     if let movie = try? await newItem.loadTransferable(type: VideoTransferable.self),
                        let data = try? Data(contentsOf: movie.url) {
+                        if data.count > 10 * 1024 * 1024 {
+                            await MainActor.run {
+                                self.isLoadingMedia = false
+                                self.uploadError = "El vídeo supera el tamaño máximo permitido (10MB). Por favor recorta su duración."
+                            }
+                            return
+                        }
+                        let ext = movie.url.pathExtension.lowercased()
+                        let isMov = ext == "mov"
                         await MainActor.run {
                             self.selectedData = data
-                            self.mimeType = "video/mp4"
-                            self.fileName = "video_progreso.mp4"
+                            self.mimeType = isMov ? "video/quicktime" : "video/mp4"
+                            self.fileName = isMov ? "video_progreso.mov" : "video_progreso.mp4"
                             self.isVideo = true
                             self.isLoadingMedia = false
                         }
@@ -254,25 +268,51 @@ struct GymProgressUploadView: View {
                     // 2. Intentar cargar como Data directa (foto o vídeo)
                     if let data = try? await newItem.loadTransferable(type: Data.self) {
                         let isVid = newItem.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) })
-                        await MainActor.run {
-                            if isVid {
+                        if isVid {
+                            if data.count > 10 * 1024 * 1024 {
+                                await MainActor.run {
+                                    self.isLoadingMedia = false
+                                    self.uploadError = "El vídeo supera el tamaño máximo permitido (10MB). Por favor recorta su duración."
+                                }
+                                return
+                            }
+                            await MainActor.run {
                                 self.selectedData = data
                                 self.mimeType = "video/mp4"
                                 self.fileName = "video_progreso.mp4"
                                 self.isVideo = true
-                            } else {
-                                if let uiImage = UIImage(data: data), let jpeg = uiImage.jpegData(compressionQuality: 0.85) {
-                                    self.selectedData = jpeg
-                                } else {
-                                    self.selectedData = data
-                                }
-                                self.mimeType = "image/jpeg"
-                                self.fileName = "foto_progreso.jpg"
-                                self.isVideo = false
+                                self.isLoadingMedia = false
                             }
-                            self.isLoadingMedia = false
+                            return
+                        } else {
+                            if let uiImage = UIImage(data: data),
+                               let compressed = resizeAndCompressImage(uiImage) {
+                                await MainActor.run {
+                                    self.selectedData = compressed
+                                    self.mimeType = "image/jpeg"
+                                    self.fileName = "foto_progreso.jpg"
+                                    self.isVideo = false
+                                    self.isLoadingMedia = false
+                                }
+                                return
+                            } else {
+                                if data.count > 10 * 1024 * 1024 {
+                                    await MainActor.run {
+                                        self.isLoadingMedia = false
+                                        self.uploadError = "La foto supera el tamaño máximo de 10MB. Elige otra foto."
+                                    }
+                                    return
+                                }
+                                await MainActor.run {
+                                    self.selectedData = data
+                                    self.mimeType = "image/jpeg"
+                                    self.fileName = "foto_progreso.jpg"
+                                    self.isVideo = false
+                                    self.isLoadingMedia = false
+                                }
+                                return
+                            }
                         }
-                        return
                     }
                     
                     await MainActor.run {
@@ -284,10 +324,36 @@ struct GymProgressUploadView: View {
         }
     }
     
+    /// Redimensiona y comprime la imagen a máx 1920px y calidad JPEG 0.82 (igual que en la webapp)
+    private func resizeAndCompressImage(_ image: UIImage, maxDimension: CGFloat = 1920, quality: CGFloat = 0.82) -> Data? {
+        let size = image.size
+        var targetSize = size
+        if size.width > maxDimension || size.height > maxDimension {
+            if size.width > size.height {
+                targetSize = CGSize(width: maxDimension, height: (size.height * maxDimension) / size.width)
+            } else {
+                targetSize = CGSize(width: (size.width * maxDimension) / size.height, height: maxDimension)
+            }
+        }
+        
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return resized.jpegData(compressionQuality: quality)
+    }
+    
     private func performUpload() {
         guard let data = selectedData else { return }
+        if data.count > 10 * 1024 * 1024 {
+            uploadError = "El archivo supera el tamaño máximo de 10MB permitido por el servidor."
+            return
+        }
         isUploading = true
         uploadError = nil
+        pbManager.errorMessage = nil
         
         Task { @MainActor in
             let success = await pbManager.uploadProgressMedia(

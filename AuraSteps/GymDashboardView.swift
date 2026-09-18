@@ -24,12 +24,33 @@ struct GymDashboardView: View {
                         
                         VStack(spacing: 20) {
                             if let error = pbManager.errorMessage {
-                                Text("Error: \(error)")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                    .padding()
-                                    .background(Color.red.opacity(0.1))
-                                    .cornerRadius(10)
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.red)
+                                        .font(.caption)
+                                        .padding(.top, 2)
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                        .lineLimit(4)
+                                    Spacer()
+                                    Button(action: {
+                                        withAnimation {
+                                            pbManager.errorMessage = nil
+                                        }
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.red.opacity(0.7))
+                                            .font(.caption)
+                                    }
+                                }
+                                .padding(12)
+                                .background(Color.red.opacity(0.12))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                                )
                             }
                             
                             userWelcomeCard
@@ -61,6 +82,7 @@ struct GymDashboardView: View {
                     .environmentObject(themeManager)
             }
             .task {
+                pbManager.errorMessage = nil
                 await pbManager.refreshAllGymData()
             }
         }
