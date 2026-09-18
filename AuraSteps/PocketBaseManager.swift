@@ -739,8 +739,8 @@ public final class PocketBaseManager: ObservableObject {
     
     private func checkForNewNotes(userId: String, afterISO: String) async {
         guard let token = authToken else { return }
-        let filterStr = "user = \"\(userId)\" && updated > \"\(afterISO)\"".pocketBaseQueryEncoded
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)&sort=-created&limit=1") else { return }
+        let filterStr = "client = \"\(userId)\" && updated > \"\(afterISO)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)&limit=1") else { return }
         
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -751,10 +751,10 @@ public final class PocketBaseManager: ObservableObject {
            let latestNote = list.items.first {
             
             await fetchClientNotes(forUserId: userId)
-            let noteContent = latestNote.content ?? latestNote.note ?? "Tienes una nueva nota de tu entrenador."
+            let noteContent = latestNote.content ?? "Tienes una nueva nota de tu entrenador."
             showLocalNotification(
                 title: "💬 Nueva Nota del Entrenador",
-                body: "\(latestNote.title ?? "Nota"): \(noteContent)"
+                body: noteContent
             )
         }
     }
