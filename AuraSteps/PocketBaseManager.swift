@@ -25,6 +25,7 @@ public final class PocketBaseManager: ObservableObject {
         }
     }
     
+    @Published public var fileToken: String?
     @Published public var activeRoutine: GymRoutine?
     @Published public var routineDays: [GymRoutineDay] = []
     @Published public var completedDayIds: Set<String> = []
@@ -117,6 +118,7 @@ public final class PocketBaseManager: ObservableObject {
     
     public func logout() {
         self.authToken = nil
+        self.fileToken = nil
         self.currentUser = nil
         self.activeRoutine = nil
         self.routineDays = []
@@ -126,9 +128,30 @@ public final class PocketBaseManager: ObservableObject {
     
     // MARK: - Carga de Datos de Gimnasio
     
+    public func fetchFileToken() async {
+        guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/files/token") else { return }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let fToken = json["token"] as? String {
+                self.fileToken = fToken
+            }
+        } catch {
+            print("Error obteniendo token de archivos: \(error.localizedDescription)")
+        }
+    }
+    
     public func refreshAllGymData() async {
         guard isLoggedIn, let user = currentUser else { return }
         
+        await fetchFileToken()
         await fetchActiveRoutine(forUserId: user.id)
         await fetchProgressUploads(forUserId: user.id)
     }
@@ -164,29 +187,13 @@ public final class PocketBaseManager: ObservableObject {
                     await fetchRoutineDays(routineId: rId)
                 }
             } else {
-                await fetchFirstAvailableRoutine()
+                self.activeRoutine = nil
+                self.routineDays = []
             }
         } catch {
             print("Error obteniendo rutina activa: \(error.localizedDescription)")
-        }
-    }
-    
-    private func fetchFirstAvailableRoutine() async {
-        guard let token = authToken,
-              let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records?perPage=1") else { return }
-        
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        do {
-            let (data, _) = try await URLSession.shared.data(for: request)
-            let response = try JSONDecoder().decode(PocketBaseListResponse<GymRoutine>.self, from: data)
-            if let firstRoutine = response.items.first {
-                self.activeRoutine = firstRoutine
-                await fetchRoutineDays(routineId: firstRoutine.id)
-            }
-        } catch {
-            print("Error obteniendo rutina por defecto: \(error.localizedDescription)")
+            self.activeRoutine = nil
+            self.routineDays = []
         }
     }
     
@@ -239,7 +246,6 @@ public final class PocketBaseManager: ObservableObject {
         
         if completedDayIds.contains(dayId) {
             completedDayIds.remove(dayId)
-            // Buscar y eliminar en PocketBase
             let filterStr = "(client=\"\(user.id)\" && routine_day=\"\(dayId)\" && completed_date=\"\(todayStr)\")".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             if let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") {
                 var req = URLRequest(url: url)
@@ -344,6 +350,11 @@ public final class PocketBaseManager: ObservableObject {
     
     public func getFileURL(recordId: String, collectionName: String = "progress_uploads", fileName: String) -> URL? {
         guard !fileName.isEmpty else { return nil }
-        return URL(string: "\(normalizedBaseURL)/api/files/\(collectionName)/\(recordId)/\(fileName)")
+        var urlString = "\(normalizedBaseURL)/api/files/\(collectionName)/\(recordId)/\(fileName)"
+        let tokenToUse = fileToken ?? authToken
+        if let token = tokenToUse, !token.isEmpty {
+            urlString += "?token=\(token)"
+        }
+        return URL(string: urlString)
     }
 }
