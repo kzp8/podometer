@@ -27,7 +27,7 @@ struct GymGalleryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.clear.ignoresSafeArea()
+                AppBackgroundView()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -45,8 +45,8 @@ struct GymGalleryView: View {
                         }
                     }
                     .padding(.horizontal)
-                    .padding(.vertical, 16)
-                    .padding(.bottom, isSelectionMode ? 80 : 0)
+                    .padding(.top, 16)
+                    .padding(.bottom, isSelectionMode ? 140 : 110)
                 }
                 
                 // Barra flotante de selección y eliminación por lotes

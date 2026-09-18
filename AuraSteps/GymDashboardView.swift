@@ -11,7 +11,7 @@ struct GymDashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.clear.ignoresSafeArea()
+                AppBackgroundView()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -30,7 +30,8 @@ struct GymDashboardView: View {
                         recentUploadsSection
                     }
                     .padding(.horizontal)
-                    .padding(.vertical, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 110)
                 }
             }
             .navigationTitle("Mi Panel")

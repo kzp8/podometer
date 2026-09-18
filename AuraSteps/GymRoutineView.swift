@@ -17,7 +17,7 @@ struct GymRoutineView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.clear.ignoresSafeArea()
+                AppBackgroundView()
                 
                 if pbManager.routineDays.isEmpty {
                     emptyStateView
@@ -39,7 +39,8 @@ struct GymRoutineView: View {
                             }
                         }
                         .padding(.horizontal)
-                        .padding(.vertical, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 110)
                     }
                 }
             }

@@ -24,7 +24,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.clear.ignoresSafeArea()
+                AppBackgroundView()
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
@@ -35,7 +35,8 @@ struct SettingsView: View {
                         themeSection
                         privacySection
                     }
-                    .padding(.vertical)
+                    .padding(.top, 16)
+                    .padding(.bottom, 110)
                 }
             }
             .navigationTitle("Ajustes")

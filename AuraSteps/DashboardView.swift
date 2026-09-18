@@ -19,7 +19,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.clear.ignoresSafeArea()
+                AppBackgroundView()
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 24) {
@@ -32,7 +32,8 @@ struct DashboardView: View {
                         metricsGridView
                         historyInteractiveSectionView
                     }
-                    .padding(.vertical)
+                    .padding(.top, 16)
+                    .padding(.bottom, 110)
                 }
                 .navigationTitle("AuraSteps")
                 .navigationBarTitleDisplayMode(.inline)
