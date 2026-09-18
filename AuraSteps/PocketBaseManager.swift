@@ -1,11 +1,15 @@
 import Foundation
 import Combine
 import SwiftUI
+import UserNotifications
 
 /// Gestor principal de conexión con el backend PocketBase (rutinas, fotos/vídeos de progreso y autenticación de usuarios).
 @MainActor
 public final class PocketBaseManager: ObservableObject {
     public let serverURL: String = "https://pb-gymapp-1.davidrus.dev"
+    
+    private var realtimeTask: Task<Void, Never>?
+    private var tokenObserver: Any?
     
     @Published public var authToken: String? {
         didSet {
@@ -49,11 +53,29 @@ public final class PocketBaseManager: ObservableObject {
             self.currentUser = user
         }
         
+        // Escuchar si llega el token de APNs desde el AppDelegate
+        self.tokenObserver = NotificationCenter.default.addObserver(forName: .didReceiveAPNsToken, object: nil, queue: .main) { [weak self] notif in
+            if let token = notif.object as? String {
+                Task { @MainActor in
+                    _ = await self?.updateDeviceToken(token)
+                }
+            }
+        }
+        
         if isLoggedIn {
             Task { @MainActor in
                 await refreshAllGymData()
+                await syncAPNsDeviceToken()
+                startRealtimeSync()
             }
         }
+    }
+    
+    deinit {
+        if let observer = tokenObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        realtimeTask?.cancel()
     }
     
     /// Normaliza la URL del servidor base.
@@ -108,6 +130,8 @@ public final class PocketBaseManager: ObservableObject {
                 self.currentUser = user
                 
                 await refreshAllGymData()
+                await syncAPNsDeviceToken()
+                startRealtimeSync()
                 return true
             } else {
                 errorMessage = "Error al procesar la respuesta del servidor"
@@ -120,6 +144,7 @@ public final class PocketBaseManager: ObservableObject {
     }
     
     public func logout() {
+        stopRealtimeSync()
         self.authToken = nil
         self.fileToken = nil
         self.currentUser = nil
@@ -648,6 +673,174 @@ public final class PocketBaseManager: ObservableObject {
     public func getFileURL(recordId: String, collectionName: String = "progress_uploads", fileName: String) -> URL? {
         guard !fileName.isEmpty else { return nil }
         return URL(string: "\(normalizedBaseURL)/api/files/\(collectionName)/\(recordId)/\(fileName)")
+    }
+    
+    // MARK: - APNs Device Token Sync
+    
+    public func updateDeviceToken(_ token: String) async -> Bool {
+        guard let user = currentUser, let authToken = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(user.id)") else { return false }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "apns_token": token,
+            "device_token": token
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                print("✅ Token APNs sincronizado con PocketBase para usuario \(user.id)")
+                return true
+            }
+        } catch {
+            print("⚠️ Error sincronizando token APNs con PocketBase: \(error.localizedDescription)")
+        }
+        return false
+    }
+    
+    public func syncAPNsDeviceToken() async {
+        if let token = UserDefaults.standard.string(forKey: "apns_device_token"), isLoggedIn {
+            _ = await updateDeviceToken(token)
+        }
+    }
+    
+    // MARK: - Sincronización Realtime (SSE) de PocketBase
+    
+    public func startRealtimeSync() {
+        guard isLoggedIn, let user = currentUser else { return }
+        stopRealtimeSync()
+        
+        let userId = user.id
+        realtimeTask = Task { [weak self] in
+            guard let self = self else { return }
+            await self.runRealtimeSSELoop(userId: userId)
+        }
+    }
+    
+    public func stopRealtimeSync() {
+        realtimeTask?.cancel()
+        realtimeTask = nil
+    }
+    
+    private func runRealtimeSSELoop(userId: String) async {
+        guard let url = URL(string: "\(normalizedBaseURL)/api/realtime") else { return }
+        
+        while !Task.isCancelled {
+            do {
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 3600
+                let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                
+                guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 else {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                    continue
+                }
+                
+                var currentEvent: String?
+                
+                for try await line in bytes.lines {
+                    if Task.isCancelled { break }
+                    
+                    if line.hasPrefix("event:") {
+                        currentEvent = line.replacingOccurrences(of: "event:", with: "").trimmingCharacters(in: .whitespaces)
+                    } else if line.hasPrefix("data:") {
+                        let dataStr = line.replacingOccurrences(of: "data:", with: "").trimmingCharacters(in: .whitespaces)
+                        
+                        if currentEvent == "PB_CONNECT" {
+                            if let json = try? JSONSerialization.jsonObject(with: Data(dataStr.utf8)) as? [String: Any],
+                               let cId = json["clientId"] as? String {
+                                await self.subscribeRealtimeTopics(clientId: cId)
+                            }
+                        } else {
+                            await self.handleRealtimeEvent(jsonString: dataStr, userId: userId)
+                        }
+                    }
+                }
+            } catch {
+                if Task.isCancelled { break }
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+            }
+        }
+    }
+    
+    private func subscribeRealtimeTopics(clientId: String) async {
+        guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/realtime") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let payload: [String: Any] = [
+            "clientId": clientId,
+            "subscriptions": [
+                "client_notes",
+                "workout_routines",
+                "progress_uploads"
+            ]
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        _ = try? await URLSession.shared.data(for: request)
+    }
+    
+    private func handleRealtimeEvent(jsonString: String, userId: String) async {
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let action = json["action"] as? String,
+              let record = json["record"] as? [String: Any] else {
+            return
+        }
+        
+        let targetUserId = (record["user"] as? String) ?? (record["user_id"] as? String) ?? (record["client"] as? String)
+        if let target = targetUserId, !target.isEmpty && target != userId {
+            return
+        }
+        
+        let collection = (record["@collectionName"] as? String) ?? (json["collection"] as? String) ?? ""
+        
+        if collection.contains("notes") || record["note"] != nil || record["title"] != nil {
+            if action == "create" || action == "update" {
+                await fetchClientNotes(forUserId: userId)
+                showTrainerNotification(
+                    title: "💬 Nota de tu Entrenador",
+                    body: (record["note"] as? String) ?? (record["content"] as? String) ?? "Tienes una nueva nota en tu panel."
+                )
+            }
+        } else if collection.contains("routine") || record["routine_days"] != nil {
+            if action == "update" || action == "create" {
+                await fetchActiveRoutine(forUserId: userId)
+                showTrainerNotification(
+                    title: "🏋️ Rutina Actualizada",
+                    body: "Tu entrenador ha actualizado tu plan de entrenamiento."
+                )
+            }
+        } else if collection.contains("progress") || record["file"] != nil {
+            if action == "update" {
+                await fetchProgressUploads(forUserId: userId)
+                let feedback = record["admin_response"] as? String
+                let body = (feedback != nil && !feedback!.isEmpty) ? "Feedback: \(feedback!)" : "Tu entrega de progreso ha sido revisada."
+                showTrainerNotification(
+                    title: "✅ Progreso Revisado",
+                    body: body
+                )
+            }
+        }
+    }
+    
+    private func showTrainerNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.2, repeats: false)
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
     }
 }
 

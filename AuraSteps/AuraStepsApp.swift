@@ -3,6 +3,8 @@ import HealthKit
 
 @main
 struct AuraStepsApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     @StateObject private var motionManager = StepMotionManager()
     @StateObject private var deepLinkManager = DeepLinkManager()
     @StateObject private var dispatcher = WebhookDispatcher()
@@ -59,8 +61,17 @@ struct AuraStepsApp: App {
                 }
             }
             .onChange(of: pocketBaseManager.isLoggedIn) { loggedIn in
-                if !loggedIn && tabScrollManager.selectedTab > 1 {
-                    tabScrollManager.selectTab(0)
+                if loggedIn {
+                    UIApplication.shared.registerForRemoteNotifications()
+                    Task {
+                        await pocketBaseManager.syncAPNsDeviceToken()
+                        pocketBaseManager.startRealtimeSync()
+                    }
+                } else {
+                    pocketBaseManager.stopRealtimeSync()
+                    if tabScrollManager.selectedTab > 1 {
+                        tabScrollManager.selectTab(0)
+                    }
                 }
             }
             .tint(themeManager.accentColor)
@@ -95,6 +106,11 @@ struct AuraStepsApp: App {
             .task {
                 if HKHealthStore.isHealthDataAvailable() {
                     await motionManager.requestHealthKitAuthorization()
+                }
+                if await notificationManager.requestAuthorization() {
+                    await MainActor.run {
+                        UIApplication.shared.registerForRemoteNotifications()
+                    }
                 }
             }
         }
