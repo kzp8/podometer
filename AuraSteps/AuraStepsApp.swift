@@ -17,6 +17,8 @@ struct AuraStepsApp: App {
     
     @State private var showOnboarding: Bool = false
     
+    @Environment(\.scenePhase) private var scenePhase
+    
     var body: some Scene {
         WindowGroup {
             ZStack {
@@ -65,12 +67,18 @@ struct AuraStepsApp: App {
                     UIApplication.shared.registerForRemoteNotifications()
                     Task {
                         await pocketBaseManager.syncAPNsDeviceToken()
-                        pocketBaseManager.startRealtimeSync()
+                        await pocketBaseManager.checkTrainerUpdatesAndNotify()
                     }
                 } else {
-                    pocketBaseManager.stopRealtimeSync()
                     if tabScrollManager.selectedTab > 1 {
                         tabScrollManager.selectTab(0)
+                    }
+                }
+            }
+            .onChange(of: scenePhase) { newPhase in
+                if newPhase == .active && pocketBaseManager.isLoggedIn {
+                    Task {
+                        await pocketBaseManager.checkTrainerUpdatesAndNotify()
                     }
                 }
             }
@@ -115,6 +123,13 @@ struct AuraStepsApp: App {
                 if await notificationManager.requestAuthorization() {
                     await MainActor.run {
                         UIApplication.shared.registerForRemoteNotifications()
+                    }
+                }
+                // Comprobación periódica cada 5 minutos mientras la app esté abierta o en background
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutos
+                    if pocketBaseManager.isLoggedIn {
+                        await pocketBaseManager.checkTrainerUpdatesAndNotify()
                     }
                 }
             }

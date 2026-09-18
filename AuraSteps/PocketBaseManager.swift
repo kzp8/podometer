@@ -8,7 +8,6 @@ import UserNotifications
 public final class PocketBaseManager: ObservableObject {
     public let serverURL: String = "https://pb-gymapp-1.davidrus.dev"
     
-    private var realtimeTask: Task<Void, Never>?
     private var tokenObserver: Any?
     
     @Published public var authToken: String? {
@@ -66,7 +65,6 @@ public final class PocketBaseManager: ObservableObject {
             Task { @MainActor in
                 await refreshAllGymData()
                 await syncAPNsDeviceToken()
-                startRealtimeSync()
             }
         }
     }
@@ -75,7 +73,6 @@ public final class PocketBaseManager: ObservableObject {
         if let observer = tokenObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-        realtimeTask?.cancel()
     }
     
     /// Normaliza la URL del servidor base.
@@ -131,7 +128,6 @@ public final class PocketBaseManager: ObservableObject {
                 
                 await refreshAllGymData()
                 await syncAPNsDeviceToken()
-                startRealtimeSync()
                 return true
             } else {
                 errorMessage = "Error al procesar la respuesta del servidor"
@@ -144,7 +140,6 @@ public final class PocketBaseManager: ObservableObject {
     }
     
     public func logout() {
-        stopRealtimeSync()
         self.authToken = nil
         self.fileToken = nil
         self.currentUser = nil
@@ -710,135 +705,113 @@ public final class PocketBaseManager: ObservableObject {
         }
     }
     
-    // MARK: - Sincronización Realtime (SSE) de PocketBase
+    // MARK: - Comprobación Periódica de Cambios del Entrenador
     
-    public func startRealtimeSync() {
+    /// Comprueba si han habido nuevas notas, cambios en la rutina o respuestas a entregas desde la última revisión y notifica.
+    public func checkTrainerUpdatesAndNotify() async {
         guard isLoggedIn, let user = currentUser else { return }
-        stopRealtimeSync()
         
-        let userId = user.id
-        realtimeTask = Task { [weak self] in
-            guard let self = self else { return }
-            await self.runRealtimeSSELoop(userId: userId)
-        }
-    }
-    
-    public func stopRealtimeSync() {
-        realtimeTask?.cancel()
-        realtimeTask = nil
-    }
-    
-    private func runRealtimeSSELoop(userId: String) async {
-        guard let url = URL(string: "\(normalizedBaseURL)/api/realtime") else { return }
+        let lastCheckTime = UserDefaults.standard.double(forKey: "last_trainer_check_timestamp")
+        let currentTimestamp = Date().timeIntervalSince1970
+        // Guardamos el nuevo timestamp para futuras comprobaciones
+        UserDefaults.standard.set(currentTimestamp, forKey: "last_trainer_check_timestamp")
         
-        while !Task.isCancelled {
-            do {
-                var request = URLRequest(url: url)
-                request.timeoutInterval = 3600
-                let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                
-                guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 else {
-                    try await Task.sleep(nanoseconds: 5_000_000_000)
-                    continue
-                }
-                
-                var currentEvent: String?
-                
-                for try await line in bytes.lines {
-                    if Task.isCancelled { break }
-                    
-                    if line.hasPrefix("event:") {
-                        currentEvent = line.replacingOccurrences(of: "event:", with: "").trimmingCharacters(in: .whitespaces)
-                    } else if line.hasPrefix("data:") {
-                        let dataStr = line.replacingOccurrences(of: "data:", with: "").trimmingCharacters(in: .whitespaces)
-                        
-                        if currentEvent == "PB_CONNECT" {
-                            if let json = try? JSONSerialization.jsonObject(with: Data(dataStr.utf8)) as? [String: Any],
-                               let cId = json["clientId"] as? String {
-                                await self.subscribeRealtimeTopics(clientId: cId)
-                            }
-                        } else {
-                            await self.handleRealtimeEvent(jsonString: dataStr, userId: userId)
-                        }
-                    }
-                }
-            } catch {
-                if Task.isCancelled { break }
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-            }
-        }
-    }
-    
-    private func subscribeRealtimeTopics(clientId: String) async {
-        guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/realtime") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let payload: [String: Any] = [
-            "clientId": clientId,
-            "subscriptions": [
-                "client_notes",
-                "workout_routines",
-                "progress_uploads"
-            ]
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
-        _ = try? await URLSession.shared.data(for: request)
-    }
-    
-    private func handleRealtimeEvent(jsonString: String, userId: String) async {
-        guard let data = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let action = json["action"] as? String,
-              let record = json["record"] as? [String: Any] else {
+        // Si es la primera vez que se ejecuta, simplemente refrescamos sin spam de notificaciones
+        if lastCheckTime == 0 {
+            await refreshAllGymData()
             return
         }
         
-        let targetUserId = (record["user"] as? String) ?? (record["user_id"] as? String) ?? (record["client"] as? String)
-        if let target = targetUserId, !target.isEmpty && target != userId {
-            return
-        }
+        let lastCheckDate = Date(timeIntervalSince1970: lastCheckTime)
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let lastCheckISO = isoFormatter.string(from: lastCheckDate)
         
-        let collection = (record["@collectionName"] as? String) ?? (json["collection"] as? String) ?? ""
+        // 1. Revisar nuevas notas del entrenador creadas o modificadas tras lastCheckDate
+        await checkForNewNotes(userId: user.id, afterISO: lastCheckISO)
         
-        if collection.contains("notes") || record["note"] != nil || record["title"] != nil {
-            if action == "create" || action == "update" {
-                await fetchClientNotes(forUserId: userId)
-                showTrainerNotification(
-                    title: "💬 Nota de tu Entrenador",
-                    body: (record["note"] as? String) ?? (record["content"] as? String) ?? "Tienes una nueva nota en tu panel."
-                )
-            }
-        } else if collection.contains("routine") || record["routine_days"] != nil {
-            if action == "update" || action == "create" {
-                await fetchActiveRoutine(forUserId: userId)
-                showTrainerNotification(
-                    title: "🏋️ Rutina Actualizada",
-                    body: "Tu entrenador ha actualizado tu plan de entrenamiento."
-                )
-            }
-        } else if collection.contains("progress") || record["file"] != nil {
-            if action == "update" {
-                await fetchProgressUploads(forUserId: userId)
-                let feedback = record["admin_response"] as? String
-                let body = (feedback != nil && !feedback!.isEmpty) ? "Feedback: \(feedback!)" : "Tu entrega de progreso ha sido revisada."
-                showTrainerNotification(
-                    title: "✅ Progreso Revisado",
-                    body: body
-                )
-            }
+        // 2. Revisar si la rutina activa cambió tras lastCheckDate
+        await checkForRoutineUpdates(userId: user.id, afterISO: lastCheckISO)
+        
+        // 3. Revisar si alguna entrega de progreso fue comentada o revisada
+        await checkForProgressReviews(userId: user.id, afterISO: lastCheckISO)
+    }
+    
+    private func checkForNewNotes(userId: String, afterISO: String) async {
+        guard let token = authToken else { return }
+        let filterStr = "user = \"\(userId)\" && updated > \"\(afterISO)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_notes/records?filter=\(filterStr)&sort=-created&limit=1") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, httpResp.statusCode == 200,
+           let list = try? JSONDecoder().decode(PocketBaseListResponse<GymClientNote>.self, from: data),
+           let latestNote = list.items.first {
+            
+            await fetchClientNotes(forUserId: userId)
+            let noteContent = latestNote.content ?? latestNote.note ?? "Tienes una nueva nota de tu entrenador."
+            showLocalNotification(
+                title: "💬 Nueva Nota del Entrenador",
+                body: "\(latestNote.title ?? "Nota"): \(noteContent)"
+            )
         }
     }
     
-    private func showTrainerNotification(title: String, body: String) {
+    private func checkForRoutineUpdates(userId: String, afterISO: String) async {
+        guard let token = authToken else { return }
+        let filterStr = "client = \"\(userId)\" && active = true && updated > \"\(afterISO)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&limit=1") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, httpResp.statusCode == 200,
+           let list = try? JSONDecoder().decode(PocketBaseListResponse<ClientRoutineRecord>.self, from: data),
+           !list.items.isEmpty {
+            
+            await fetchActiveRoutine(forUserId: userId)
+            showLocalNotification(
+                title: "🏋️ Rutina Actualizada",
+                body: "Tu entrenador ha modificado tu plan de entrenamiento."
+            )
+        }
+    }
+    
+    private func checkForProgressReviews(userId: String, afterISO: String) async {
+        guard let token = authToken else { return }
+        let filterStr = "user = \"\(userId)\" && updated > \"\(afterISO)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records?filter=\(filterStr)&sort=-updated&limit=1") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, httpResp.statusCode == 200,
+           let list = try? JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data),
+           let upload = list.items.first,
+           (upload.admin_response != nil || upload.seen_by_admin == true) {
+            
+            await fetchProgressUploads(forUserId: userId)
+            let bodyMsg = (upload.admin_response != nil && !upload.admin_response!.isEmpty)
+                ? "Feedback: \(upload.admin_response!)"
+                : "Tu entrega multimedia ha sido visualizada."
+            showLocalNotification(
+                title: "✅ Entrega Revisada",
+                body: bodyMsg
+            )
+        }
+    }
+    
+    private func showLocalNotification(title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
         
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.2, repeats: false)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1.0, repeats: false)
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request)
     }
