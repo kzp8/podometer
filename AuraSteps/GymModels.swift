@@ -106,17 +106,42 @@ public struct GymWorkoutCompletion: Identifiable, Codable, Sendable {
     }
 }
 
+/// Modelo que representa las notas o registro de cargas de un día de entrenamiento (workout_logs).
+public struct GymWorkoutLog: Identifiable, Codable, Sendable {
+    public let id: String
+    public let client: String?
+    public let routine_day: String?
+    public let log_date: String?
+    public let content: String?
+    
+    public init(id: String, client: String? = nil, routine_day: String? = nil, log_date: String? = nil, content: String? = nil) {
+        self.id = id
+        self.client = client
+        self.routine_day = routine_day
+        self.log_date = log_date
+        self.content = content
+    }
+}
+
 /// Modelo que representa la subida de un vídeo o foto de progreso entregado al entrenador.
 public struct GymProgressUpload: Identifiable, Codable, Sendable {
     public let id: String
     public let client: String?
     public let file: String?
     public let file_type: String? // "image" o "video"
-    public let notes: String?
+    public let note: String?
     public var seen_by_admin: Bool?
     public var admin_response: String?
+    public var admin_response_at: String?
     public var response_seen: Bool?
+    public let uploaded_at: String?
     public let created: String?
+    
+    /// Alias para compatibilidad con vistas existentes
+    public var notes: String? {
+        if let n = note, !n.isEmpty { return n }
+        return nil
+    }
     
     public var isVideo: Bool {
         if let type = file_type, type.lowercased().contains("video") { return true }
@@ -124,17 +149,32 @@ public struct GymProgressUpload: Identifiable, Codable, Sendable {
         return false
     }
     
-    public init(id: String, client: String? = nil, file: String? = nil, file_type: String? = nil, notes: String? = nil, seen_by_admin: Bool? = false, admin_response: String? = nil, response_seen: Bool? = false, created: String? = nil) {
+    public init(id: String, client: String? = nil, file: String? = nil, file_type: String? = nil, note: String? = nil, notes: String? = nil, seen_by_admin: Bool? = false, admin_response: String? = nil, admin_response_at: String? = nil, response_seen: Bool? = false, uploaded_at: String? = nil, created: String? = nil) {
         self.id = id
         self.client = client
         self.file = file
         self.file_type = file_type
-        self.notes = notes
+        self.note = note ?? notes
         self.seen_by_admin = seen_by_admin
         self.admin_response = admin_response
+        self.admin_response_at = admin_response_at
         self.response_seen = response_seen
+        self.uploaded_at = uploaded_at
         self.created = created
     }
+}
+
+/// Modelo de relación de rutina de cliente con expansión
+public struct ClientRoutineRecord: Identifiable, Codable, Sendable {
+    public let id: String
+    public let client: String
+    public let routine: String
+    public let active: Bool?
+    public let expand: ClientRoutineExpand?
+}
+
+public struct ClientRoutineExpand: Codable, Sendable {
+    public let routine: GymRoutine?
 }
 
 /// Respuesta paginada de PocketBase.
@@ -145,3 +185,4 @@ public struct PocketBaseListResponse<T: Codable & Sendable>: Codable, Sendable {
     public let totalPages: Int
     public let items: [T]
 }
+

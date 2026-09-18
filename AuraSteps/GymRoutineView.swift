@@ -10,6 +10,9 @@ struct GymRoutineView: View {
     @State private var showLogModal: Bool = false
     @State private var logText: String = ""
     @State private var showHistoryModal: Bool = false
+    @State private var historyLogs: [GymWorkoutLog] = []
+    @State private var isSavingLog: Bool = false
+    @State private var isLoadingLog: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -40,6 +43,14 @@ struct GymRoutineView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showLogModal) {
                 logModalView
+            }
+            .sheet(isPresented: $showHistoryModal) {
+                historyModalView
+            }
+            .refreshable {
+                if let user = pbManager.currentUser {
+                    await pbManager.fetchActiveRoutine(forUserId: user.id)
+                }
             }
             .task {
                 if pbManager.routineDays.isEmpty, let user = pbManager.currentUser {
@@ -228,11 +239,21 @@ struct GymRoutineView: View {
                 }
                 
                 Button(action: {
-                    logText = (currentDay.content ?? "")
-                        .split(separator: "\n")
-                        .map { String($0).trimmingCharacters(in: .whitespaces) + ": " }
-                        .joined(separator: "\n\n")
-                    showLogModal = true
+                    guard selectedDayIndex < pbManager.routineDays.count else { return }
+                    let day = pbManager.routineDays[selectedDayIndex]
+                    Task { @MainActor in
+                        isLoadingLog = true
+                        if let existing = await pbManager.fetchTodayLog(routineDayId: day.id) {
+                            logText = existing.content ?? ""
+                        } else {
+                            logText = (day.content ?? "")
+                                .split(separator: "\n")
+                                .map { String($0).trimmingCharacters(in: .whitespaces) + ": " }
+                                .joined(separator: "\n\n")
+                        }
+                        isLoadingLog = false
+                        showLogModal = true
+                    }
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: "doc.text.fill")
@@ -252,7 +273,12 @@ struct GymRoutineView: View {
                 }
                 
                 Button(action: {
-                    showHistoryModal = true
+                    guard selectedDayIndex < pbManager.routineDays.count else { return }
+                    let day = pbManager.routineDays[selectedDayIndex]
+                    Task { @MainActor in
+                        historyLogs = await pbManager.fetchAllLogs(routineDayId: day.id)
+                        showHistoryModal = true
+                    }
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: "clock.fill")
@@ -279,31 +305,134 @@ struct GymRoutineView: View {
     
     @ViewBuilder
     private var logModalView: some View {
-        ZStack {
-            themeManager.cardColor.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Registrar cargas")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                TextEditor(text: $logText)
-                    .padding(10)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
-                    .foregroundColor(.white)
-                
-                Button("Guardar Registro") {
-                    showLogModal = false
+        NavigationStack {
+            ZStack {
+                themeManager.backgroundColor.ignoresSafeArea()
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Introduce pesos, repeticiones o sensaciones de tu entrenamiento de hoy:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    TextEditor(text: $logText)
+                        .padding(10)
+                        .background(themeManager.cardColor)
+                        .cornerRadius(14)
+                        .foregroundColor(.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                    
+                    Button(action: {
+                        guard selectedDayIndex < pbManager.routineDays.count else { return }
+                        let day = pbManager.routineDays[selectedDayIndex]
+                        isSavingLog = true
+                        Task { @MainActor in
+                            _ = await pbManager.saveWorkoutLog(routineDayId: day.id, content: logText)
+                            isSavingLog = false
+                            showLogModal = false
+                        }
+                    }) {
+                        HStack {
+                            if isSavingLog {
+                                ProgressView()
+                                    .tint(.black)
+                            } else {
+                                Image(systemName: "checkmark")
+                                Text("Guardar Registro")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(themeManager.accentColor)
+                        .cornerRadius(14)
+                    }
+                    .disabled(isSavingLog)
                 }
-                .fontWeight(.bold)
-                .foregroundColor(.black)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(themeManager.accentColor)
-                .cornerRadius(14)
+                .padding()
             }
-            .padding()
+            .navigationTitle("Registrar Cargas")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cerrar") {
+                        showLogModal = false
+                    }
+                    .foregroundColor(.gray)
+                }
+            }
         }
-        .presentationDetents([.medium])
+    }
+    
+    @ViewBuilder
+    private var historyModalView: some View {
+        NavigationStack {
+            ZStack {
+                themeManager.backgroundColor.ignoresSafeArea()
+                
+                if historyLogs.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock")
+                            .font(.largeTitle)
+                            .foregroundColor(.gray)
+                        Text("Sin registros de cargas previos")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text("Tus notas y cargas guardadas aparecerán aquí organizadas por fecha.")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                    }
+                    .padding()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(historyLogs) { log in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Image(systemName: "calendar")
+                                            .foregroundColor(themeManager.accentColor)
+                                            .font(.caption)
+                                        Text(String((log.log_date ?? "").prefix(10)))
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(themeManager.accentColor)
+                                        Spacer()
+                                    }
+                                    
+                                    if let content = log.content, !content.isEmpty {
+                                        Text(content)
+                                            .font(.subheadline)
+                                            .foregroundColor(.white.opacity(0.9))
+                                            .lineSpacing(4)
+                                    }
+                                }
+                                .padding(14)
+                                .background(themeManager.cardColor)
+                                .cornerRadius(14)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("Historial de Cargas")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cerrar") {
+                        showHistoryModal = false
+                    }
+                    .foregroundColor(themeManager.accentColor)
+                }
+            }
+        }
     }
 }

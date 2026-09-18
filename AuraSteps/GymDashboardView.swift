@@ -37,20 +37,13 @@ struct GymDashboardView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if let user = pbManager.currentUser {
-                        HStack(spacing: 8) {
-                            Text(user.initials)
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                                .padding(6)
-                                .background(themeManager.accentColor)
-                                .clipShape(Circle())
-                            
-                            Text(user.displayName)
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        }
+                        Text(user.initials)
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .frame(width: 28, height: 28)
+                            .background(themeManager.accentColor)
+                            .clipShape(Circle())
                     }
                 }
             }
@@ -58,9 +51,7 @@ struct GymDashboardView: View {
                 await pbManager.refreshAllGymData()
             }
             .task {
-                if pbManager.activeRoutine == nil && pbManager.progressUploads.isEmpty {
-                    await pbManager.refreshAllGymData()
-                }
+                await pbManager.refreshAllGymData()
             }
         }
     }
@@ -82,7 +73,7 @@ struct GymDashboardView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("¡Bienvenido de vuelta!")
+                    Text("¡Te damos la bienvenida!")
                         .font(.caption)
                         .foregroundColor(themeManager.accentColor.opacity(0.8))
                     
@@ -99,6 +90,18 @@ struct GymDashboardView: View {
                         Text("Activo desde \(user.formattedJoinedDate)")
                             .font(.caption2)
                             .foregroundColor(.gray)
+                    }
+                    
+                    if pbManager.streak > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.caption2)
+                            Text("\(pbManager.streak) día\(pbManager.streak != 1 ? "s" : "") de racha 🔥")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(themeManager.accentColor)
+                        .padding(.top, 2)
                     }
                 }
                 Spacer()
@@ -271,7 +274,7 @@ struct GymDashboardView: View {
             }
         }
         .padding(18)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+        .background(themeManager.cardColor)
         .cornerRadius(22)
         .overlay(
             RoundedRectangle(cornerRadius: 22)

@@ -30,6 +30,7 @@ public final class PocketBaseManager: ObservableObject {
     @Published public var routineDays: [GymRoutineDay] = []
     @Published public var completedDayIds: Set<String> = []
     @Published public var progressUploads: [GymProgressUpload] = []
+    @Published public var streak: Int = 0
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String?
     
@@ -124,18 +125,12 @@ public final class PocketBaseManager: ObservableObject {
         self.routineDays = []
         self.completedDayIds = []
         self.progressUploads = []
-    }
-    
-    private func makeURL(path: String, queryItems: [URLQueryItem] = []) -> URL? {
-        var components = URLComponents(string: "\(normalizedBaseURL)\(path)")
-        if !queryItems.isEmpty {
-            components?.queryItems = queryItems
-        }
-        return components?.url
+        self.streak = 0
+        self.errorMessage = nil
     }
     
     // MARK: - Carga de Datos de Gimnasio
-
+    
     public func refreshAuthSession() async -> Bool {
         guard let token = authToken, let url = URL(string: "\(normalizedBaseURL)/api/collections/users/auth-refresh") else {
             return false
@@ -197,6 +192,7 @@ public final class PocketBaseManager: ObservableObject {
     public func fetchActiveRoutine(forUserId userId: String) async {
         guard let token = authToken else { return }
         
+        // Exactamente como en la web: client = "id" && active = true con expand = routine
         let filterStr = "client = \"\(userId)\" && active = true".pocketBaseQueryEncoded
         guard let url = URL(string: "\(normalizedBaseURL)/api/collections/client_routines/records?filter=\(filterStr)&expand=routine") else { return }
         
@@ -212,60 +208,47 @@ public final class PocketBaseManager: ObservableObject {
                 return
             }
             
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let items = json["items"] as? [[String: Any]] {
+            if let listResp = try? JSONDecoder().decode(PocketBaseListResponse<ClientRoutineRecord>.self, from: data),
+               let firstAssignment = listResp.items.first {
                 
-                if let firstAssignment = items.first {
-                    var targetRoutineId: String? = firstAssignment["routine"] as? String
-                    
-                    if let expand = firstAssignment["expand"] as? [String: Any],
-                       let routineDict = expand["routine"] as? [String: Any],
-                       let routineData = try? JSONSerialization.data(withJSONObject: routineDict) {
-                        
-                        do {
-                            let routine = try JSONDecoder().decode(GymRoutine.self, from: routineData)
-                            self.activeRoutine = routine
-                            targetRoutineId = routine.id
-                        } catch {
-                            self.errorMessage = "Error de rutina: \(error)"
-                            print("Decode error GymRoutine: \(error)")
-                        }
-                    }
-                    
-                    if let rId = targetRoutineId {
-                        await fetchRoutineDays(routineId: rId)
-                    }
+                if let routine = firstAssignment.expand?.routine {
+                    self.activeRoutine = routine
+                    await fetchRoutineDays(routineId: routine.id)
                 } else {
-                    self.activeRoutine = nil
-                    self.routineDays = []
+                    let routineId = firstAssignment.routine
+                    await fetchSingleRoutine(routineId: routineId)
+                    await fetchRoutineDays(routineId: routineId)
                 }
+            } else {
+                self.activeRoutine = nil
+                self.routineDays = []
             }
         } catch {
             print("Error obteniendo rutina activa: \(error.localizedDescription)")
         }
     }
     
+    public func fetchSingleRoutine(routineId: String) async {
+        guard let token = authToken else { return }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(routineId)") else { return }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            if let routine = try? JSONDecoder().decode(GymRoutine.self, from: data) {
+                self.activeRoutine = routine
+            }
+        }
+    }
+    
     private func fetchRoutineDays(routineId: String) async {
         guard let token = authToken else { return }
         
-        if self.activeRoutine == nil || self.activeRoutine?.id != routineId {
-            if let url = URL(string: "\(normalizedBaseURL)/api/collections/routines/records/\(routineId)") {
-                var req = URLRequest(url: url)
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                if let (data, resp) = try? await URLSession.shared.data(for: req),
-                   let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
-                    do {
-                        let routine = try JSONDecoder().decode(GymRoutine.self, from: data)
-                        self.activeRoutine = routine
-                    } catch {
-                        print("Decode error GymRoutine (single): \(error)")
-                    }
-                }
-            }
-        }
-        
+        // En la web: pb.collection('routine_days').getFullList({ filter: `routine = "${r.id}"` })
+        // IMPORTANTE: NO pasar &sort=created ya que routine_days no tiene dicho campo.
         let filterStr = "routine = \"\(routineId)\"".pocketBaseQueryEncoded
-        if let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(filterStr)&sort=created") {
+        if let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records?filter=\(filterStr)") {
             var req = URLRequest(url: url)
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             if let (data, resp) = try? await URLSession.shared.data(for: req),
@@ -274,7 +257,7 @@ public final class PocketBaseManager: ObservableObject {
                     let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymRoutineDay>.self, from: data)
                     self.routineDays = listResp.items
                 } catch {
-                    self.errorMessage = "Error días rutina: \(error)"
+                    self.errorMessage = "Error decodificando días de rutina: \(error)"
                     print("Decode error PocketBaseListResponse<GymRoutineDay>: \(error)")
                 }
             }
@@ -285,10 +268,10 @@ public final class PocketBaseManager: ObservableObject {
     
     public func fetchCompletions() async {
         guard let token = authToken, let user = currentUser else { return }
-        let today = String(Date().formatted(.iso8601).prefix(10))
         
-        let filterStr = "client = \"\(user.id)\" && completed_date = \"\(today)\"".pocketBaseQueryEncoded
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") else { return }
+        // En la web: pb.collection('workout_completions').getFullList({ filter: `client = "${profile.id}"`, sort: '-completed_date' })
+        let filterStr = "client = \"\(user.id)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)&sort=-completed_date") else { return }
         
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -297,32 +280,91 @@ public final class PocketBaseManager: ObservableObject {
            let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
             do {
                 let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data)
-                self.completedDayIds = Set(listResp.items.map { $0.routine_day })
+                
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                let todayStr = formatter.string(from: Date())
+                
+                let todayCompletions = listResp.items.filter { item in
+                    guard let cDate = item.completed_date else { return false }
+                    return cDate.hasPrefix(todayStr) || cDate.contains(todayStr)
+                }
+                
+                self.completedDayIds = Set(todayCompletions.map { $0.routine_day })
+                self.streak = calculateStreak(from: listResp.items)
             } catch {
                 print("Decode error PocketBaseListResponse<GymWorkoutCompletion>: \(error)")
             }
         }
     }
     
+    private func calculateStreak(from completions: [GymWorkoutCompletion]) -> Int {
+        guard !completions.isEmpty else { return 0 }
+        
+        // Extraer fechas únicas en formato YYYY-MM-DD
+        let datesSet = Set(completions.compactMap { comp -> String? in
+            guard let raw = comp.completed_date else { return nil }
+            let clean = raw.replacingOccurrences(of: "T", with: " ")
+            let parts = clean.split(separator: " ")
+            return parts.first.map(String.init)
+        })
+        let sortedDates = datesSet.sorted(by: >)
+        guard let latest = sortedDates.first else { return 0 }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        let todayStr = formatter.string(from: Date())
+        let yesterdayStr = formatter.string(from: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+        
+        guard latest == todayStr || latest == yesterdayStr else { return 0 }
+        
+        var currentExpectedDate = latest
+        var streakCount = 0
+        
+        for dateStr in sortedDates {
+            if dateStr == currentExpectedDate {
+                streakCount += 1
+                if let dateObj = formatter.date(from: currentExpectedDate),
+                   let prevDay = Calendar.current.date(byAdding: .day, value: -1, to: dateObj) {
+                    currentExpectedDate = formatter.string(from: prevDay)
+                } else {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+        
+        return streakCount
+    }
+    
     public func toggleDayCompletion(dayId: String) async {
         guard let token = authToken, let user = currentUser else { return }
-        let todayStr = String(Date().formatted(.iso8601).prefix(10))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let todayStr = formatter.string(from: Date())
         
         if completedDayIds.contains(dayId) {
             completedDayIds.remove(dayId)
-            let filterStr = "client = \"\(user.id)\" && routine_day = \"\(dayId)\" && completed_date = \"\(todayStr)\"".pocketBaseQueryEncoded
+            let filterStr = "client = \"\(user.id)\" && routine_day = \"\(dayId)\"".pocketBaseQueryEncoded
             if let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records?filter=\(filterStr)") {
                 var req = URLRequest(url: url)
                 req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 if let (data, _) = try? await URLSession.shared.data(for: req),
-                   let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data),
-                   let firstItem = listResp.items.first {
+                   let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutCompletion>.self, from: data) {
                     
-                    if let delURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records/\(firstItem.id)") {
-                        var delReq = URLRequest(url: delURL)
-                        delReq.httpMethod = "DELETE"
-                        delReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                        _ = try? await URLSession.shared.data(for: delReq)
+                    if let target = listResp.items.first(where: { $0.completed_date?.contains(todayStr) == true }) ?? listResp.items.first {
+                        if let delURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_completions/records/\(target.id)") {
+                            var delReq = URLRequest(url: delURL)
+                            delReq.httpMethod = "DELETE"
+                            delReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                            _ = try? await URLSession.shared.data(for: delReq)
+                        }
                     }
                 }
             }
@@ -344,13 +386,109 @@ public final class PocketBaseManager: ObservableObject {
         }
     }
     
+    // MARK: - Registro de Cargas (Workout Logs con log_date)
+    
+    public func fetchTodayLog(routineDayId: String) async -> GymWorkoutLog? {
+        guard let token = authToken, let user = currentUser else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let todayStr = formatter.string(from: Date())
+        
+        let filterStr = "client = \"\(user.id)\" && routine_day = \"\(routineDayId)\"".pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_logs/records?filter=\(filterStr)&sort=-log_date") else { return nil }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutLog>.self, from: data) {
+            return listResp.items.first { item in
+                guard let lDate = item.log_date else { return false }
+                return lDate.contains(todayStr)
+            }
+        }
+        return nil
+    }
+    
+    public func fetchAllLogs(routineDayId: String? = nil) async -> [GymWorkoutLog] {
+        guard let token = authToken, let user = currentUser else { return [] }
+        
+        var filter = "client = \"\(user.id)\""
+        if let rId = routineDayId {
+            filter += " && routine_day = \"\(rId)\""
+        }
+        let filterStr = filter.pocketBaseQueryEncoded
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/workout_logs/records?filter=\(filterStr)&sort=-log_date") else { return [] }
+        
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+           let listResp = try? JSONDecoder().decode(PocketBaseListResponse<GymWorkoutLog>.self, from: data) {
+            return listResp.items
+        }
+        return []
+    }
+    
+    public func saveWorkoutLog(routineDayId: String, content: String) async -> Bool {
+        guard let token = authToken, let user = currentUser else { return false }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let todayStr = formatter.string(from: Date())
+        
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let existingToday = await fetchTodayLog(routineDayId: routineDayId)
+        
+        if trimmed.isEmpty {
+            if let existing = existingToday, let delURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_logs/records/\(existing.id)") {
+                var delReq = URLRequest(url: delURL)
+                delReq.httpMethod = "DELETE"
+                delReq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                _ = try? await URLSession.shared.data(for: delReq)
+            }
+            return true
+        }
+        
+        if let existing = existingToday, let updateURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_logs/records/\(existing.id)") {
+            var req = URLRequest(url: updateURL)
+            req.httpMethod = "PATCH"
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let body: [String: Any] = ["content": trimmed]
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            let (_, resp) = (try? await URLSession.shared.data(for: req)) ?? (Data(), nil)
+            return (resp as? HTTPURLResponse).map { (200...299).contains($0.statusCode) } ?? false
+        } else {
+            guard let createURL = URL(string: "\(normalizedBaseURL)/api/collections/workout_logs/records") else { return false }
+            var req = URLRequest(url: createURL)
+            req.httpMethod = "POST"
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let body: [String: Any] = [
+                "client": user.id,
+                "routine_day": routineDayId,
+                "log_date": todayStr,
+                "content": trimmed
+            ]
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            let (_, resp) = (try? await URLSession.shared.data(for: req)) ?? (Data(), nil)
+            return (resp as? HTTPURLResponse).map { (200...299).contains($0.statusCode) } ?? false
+        }
+    }
+    
     // MARK: - Subida de Archivos y Galería
     
     public func fetchProgressUploads(forUserId userId: String) async {
         guard let token = authToken else { return }
         
+        // En la web: pb.collection('progress_uploads').getFullList({ filter: `client = "${profile.id}"` })
+        // IMPORTANTE: NO pasar &sort=-created porque progress_uploads no tiene dicho campo.
         let filterStr = "client = \"\(userId)\"".pocketBaseQueryEncoded
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records?filter=\(filterStr)&sort=-created") else { return }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records?filter=\(filterStr)") else { return }
         
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -360,13 +498,16 @@ public final class PocketBaseManager: ObservableObject {
             if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
                 do {
                     let listResp = try JSONDecoder().decode(PocketBaseListResponse<GymProgressUpload>.self, from: data)
-                    self.progressUploads = listResp.items
-                } catch {
-                    self.errorMessage = "Error de progreso: \(error)"
-                    print("Decode error PocketBaseListResponse<GymProgressUpload>: \(error)")
-                    if let str = String(data: data, encoding: .utf8) {
-                        print("JSON response: \(str)")
+                    // Ordenamos de más reciente a más antiguo en memoria de forma segura
+                    self.progressUploads = listResp.items.sorted {
+                        if let d1 = $0.uploaded_at, let d2 = $1.uploaded_at, !d1.isEmpty, !d2.isEmpty {
+                            return d1 > d2
+                        }
+                        return $0.id > $1.id
                     }
+                } catch {
+                    self.errorMessage = "Error decodificando archivos: \(error)"
+                    print("Decode error PocketBaseListResponse<GymProgressUpload>: \(error)")
                 }
             } else if let httpResp = response as? HTTPURLResponse {
                 print("PocketBase fetchProgressUploads HTTP Error: \(httpResp.statusCode)")
@@ -378,7 +519,7 @@ public final class PocketBaseManager: ObservableObject {
     
     public func uploadProgressMedia(fileData: Data?, fileName: String, mimeType: String, notes: String) async -> Bool {
         guard let token = authToken, let user = currentUser else { return false }
-        guard let url = makeURL(path: "/api/collections/progress_uploads/records") else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records") else { return false }
         
         let boundary = "Boundary-\(UUID().uuidString)"
         var req = URLRequest(url: url)
@@ -393,19 +534,33 @@ public final class PocketBaseManager: ObservableObject {
         body.append("Content-Disposition: form-data; name=\"client\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(user.id)\r\n".data(using: .utf8)!)
         
-        // Campo notes
+        // Campo seen_by_admin (igual que GymApp.jsx)
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"notes\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(notes)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"seen_by_admin\"\r\n\r\n".data(using: .utf8)!)
+        body.append("false\r\n".data(using: .utf8)!)
         
-        // Campo file_type
+        // Campo uploaded_at (igual que GymApp.jsx)
+        let isoFormatter = ISO8601DateFormatter()
+        let nowISO = isoFormatter.string(from: Date())
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"uploaded_at\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(nowISO)\r\n".data(using: .utf8)!)
+        
+        // Campo note (en el backend es 'note', NO 'notes')
+        let trimmedNote = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedNote.isEmpty {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"note\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(trimmedNote)\r\n".data(using: .utf8)!)
+        }
+        
+        // Campo file_type y file binario
         if let data = fileData {
-            let isVideo = mimeType.contains("video")
+            let isVideo = mimeType.lowercased().contains("video")
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"file_type\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(isVideo ? "video" : "image")\r\n".data(using: .utf8)!)
             
-            // Campo file (binario)
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
             body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
@@ -430,23 +585,17 @@ public final class PocketBaseManager: ObservableObject {
     
     public func getFileURL(recordId: String, collectionName: String = "progress_uploads", fileName: String) -> URL? {
         guard !fileName.isEmpty else { return nil }
-        let tokenToUse = fileToken ?? authToken
-        var queryItems: [URLQueryItem] = []
-        if let token = tokenToUse, !token.isEmpty {
-            queryItems.append(URLQueryItem(name: "token", value: token))
-        }
-        return makeURL(path: "/api/files/\(collectionName)/\(recordId)/\(fileName)", queryItems: queryItems)
+        return URL(string: "\(normalizedBaseURL)/api/files/\(collectionName)/\(recordId)/\(fileName)")
     }
 }
 
 // MARK: - Extensiones de Apoyo
 
 extension String {
-    /// Codifica una cadena de filtro para PocketBase exactamente como `encodeURIComponent` de JavaScript,
-    /// dejando `=` sin codificar para que el parser de PocketBase reconozca los operadores de igualdad.
+    /// Codifica exactamente igual a `encodeURIComponent` de JavaScript
     var pocketBaseQueryEncoded: String {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "&$+\"#")
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.!~*'()")
         return self.addingPercentEncoding(withAllowedCharacters: allowed) ?? self
     }
 }
+
