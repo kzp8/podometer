@@ -25,41 +25,6 @@ struct TrainerHeaderView: View {
                 .foregroundColor(.white)
             
             Spacer()
-            
-            // Badge Entrenador
-            HStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(themeManager.accentColor)
-                        .frame(width: 26, height: 26)
-                    Text(pbManager.currentUser?.initials.prefix(1).uppercased() ?? "A")
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundColor(.white)
-                }
-                Text("Admin")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08))
-            .cornerRadius(20)
-            
-            // Botón Salir / Logout rápido
-            Button(action: {
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.impactOccurred()
-                pbManager.logout()
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.gray)
-                }
-            }
         }
         .padding(.horizontal)
         .padding(.top, 12)
