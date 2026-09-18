@@ -38,6 +38,7 @@ public final class PocketBaseManager: ObservableObject {
     @Published public var streak: Int = 0
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String?
+    @Published public var mustChangePassword: Bool = false
     
     // Propiedades exclusivas de Entrenador (Admin)
     @Published public var trainerClients: [GymUser] = []
@@ -59,6 +60,7 @@ public final class PocketBaseManager: ObservableObject {
         if let userData = UserDefaults.standard.data(forKey: "pocketbase_user_data"),
            let user = try? JSONDecoder().decode(GymUser.self, from: userData) {
             self.currentUser = user
+            self.mustChangePassword = user.needsPasswordChange
         }
         
         // Escuchar si llega el token de APNs desde el AppDelegate
@@ -132,8 +134,15 @@ public final class PocketBaseManager: ObservableObject {
                let recordData = try? JSONSerialization.data(withJSONObject: recordDict),
                let user = try? JSONDecoder().decode(GymUser.self, from: recordData) {
                 
+                // Bloquear acceso si la cuenta está inactiva
+                if !user.isActive {
+                    errorMessage = "Tu cuenta ha sido desactivada. Contacta con tu entrenador."
+                    return false
+                }
+                
                 self.authToken = token
                 self.currentUser = user
+                self.mustChangePassword = user.needsPasswordChange
                 
                 await refreshAllGymData()
                 await syncAPNsDeviceToken()
@@ -161,7 +170,16 @@ public final class PocketBaseManager: ObservableObject {
         self.trainerRoutines = []
         self.trainerUploads = []
         self.streak = 0
+        self.mustChangePassword = false
+        // Nota: NO borramos errorMessage aquí para que los auto-logouts
+        // puedan mostrar el motivo en la pantalla de login.
+        // Las vistas llaman a pbManager.errorMessage = nil manualmente al abrir login.
+    }
+    
+    /// Cierra la sesión limpiando también el mensaje de error (logout manual).
+    public func logoutManual() {
         self.errorMessage = nil
+        logout()
     }
     
     // MARK: - Carga de Datos de Gimnasio
@@ -185,8 +203,17 @@ public final class PocketBaseManager: ObservableObject {
                let recordData = try? JSONSerialization.data(withJSONObject: recordDict),
                let updatedUser = try? JSONDecoder().decode(GymUser.self, from: recordData) {
                 
+                // Si el admin ha desactivado la cuenta, cerrar sesión automáticamente
+                if !updatedUser.isActive {
+                    logout()
+                    // Asignar después de logout para que no se borre
+                    errorMessage = "Tu cuenta ha sido desactivada por el entrenador."
+                    return false
+                }
+
                 self.authToken = newToken
                 self.currentUser = updatedUser
+                self.mustChangePassword = updatedUser.needsPasswordChange
                 return true
             }
         } catch {
@@ -846,8 +873,8 @@ public final class PocketBaseManager: ObservableObject {
     public func fetchTrainerClients() async {
         guard let token = authToken, let user = currentUser, user.isAdmin else { return }
         
-        // Clientes asignados a este entrenador (o rol client)
-        let filterStr = "trainer = \"\(user.id)\" || (role = \"client\" && (trainer = \"\" || trainer = null))".pocketBaseQueryEncoded
+        // Clientes asignados exclusivamente a este entrenador
+        let filterStr = "trainer = \"\(user.id)\"".pocketBaseQueryEncoded
         guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records?filter=\(filterStr)&sort=-created") else { return }
         
         var req = URLRequest(url: url)
@@ -921,7 +948,7 @@ public final class PocketBaseManager: ObservableObject {
         }
     }
     
-    public func markUploadAsSeen(uploadId: String) async -> Bool {
+    public func markUploadAsSeen(uploadId: String, seen: Bool = true) async -> Bool {
         guard let token = authToken else { return false }
         guard let url = URL(string: "\(normalizedBaseURL)/api/collections/progress_uploads/records/\(uploadId)") else { return false }
         
@@ -929,13 +956,13 @@ public final class PocketBaseManager: ObservableObject {
         req.httpMethod = "PATCH"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: Any] = ["seen_by_admin": true]
+        let body: [String: Any] = ["seen_by_admin": seen]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
         if let (_, resp) = try? await URLSession.shared.data(for: req),
            let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
             if let idx = trainerUploads.firstIndex(where: { $0.id == uploadId }) {
-                trainerUploads[idx].seen_by_admin = true
+                trainerUploads[idx].seen_by_admin = seen
             }
             return true
         }
@@ -958,7 +985,8 @@ public final class PocketBaseManager: ObservableObject {
             "name": name,
             "role": "client",
             "trainer": user.id,
-            "status": "activo"
+            "status": "activo",
+            "must_change_password": true
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
@@ -966,6 +994,114 @@ public final class PocketBaseManager: ObservableObject {
            let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
            let newClient = try? JSONDecoder().decode(GymUser.self, from: data) {
             self.trainerClients.insert(newClient, at: 0)
+            return true
+        }
+        return false
+    }
+    
+    public func changeOwnPassword(oldPassword: String, newPassword: String) async -> (success: Bool, message: String) {
+        guard let token = authToken, let user = currentUser else {
+            return (false, "No hay sesión activa.")
+        }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(user.id)") else {
+            return (false, "URL no válida.")
+        }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "oldPassword": oldPassword,
+            "password": newPassword,
+            "passwordConfirm": newPassword,
+            "must_change_password": false
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let httpResp = resp as? HTTPURLResponse else {
+                return (false, "Error de red.")
+            }
+            if (200...299).contains(httpResp.statusCode) {
+                if var updated = try? JSONDecoder().decode(GymUser.self, from: data) {
+                    updated.must_change_password = false
+                    self.currentUser = updated
+                } else if var cur = self.currentUser {
+                    cur.must_change_password = false
+                    self.currentUser = cur
+                }
+                self.mustChangePassword = false
+                return (true, "Contraseña actualizada con éxito.")
+            } else {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let message = json["message"] as? String {
+                    return (false, message)
+                }
+                return (false, "Error al cambiar la contraseña. Revisa que la contraseña actual sea correcta.")
+            }
+        } catch {
+            return (false, "Error de conexión: \(error.localizedDescription)")
+        }
+    }
+    
+    public func changeClientPassword(clientId: String, newPassword: String) async -> (success: Bool, message: String) {
+        guard let token = authToken, let user = currentUser, user.isAdmin else {
+            return (false, "No tienes permisos de entrenador.")
+        }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(clientId)") else {
+            return (false, "URL no válida.")
+        }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "password": newPassword,
+            "passwordConfirm": newPassword,
+            "must_change_password": true
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let httpResp = resp as? HTTPURLResponse else {
+                return (false, "Error de red.")
+            }
+            if (200...299).contains(httpResp.statusCode) {
+                if let updatedClient = try? JSONDecoder().decode(GymUser.self, from: data),
+                   let idx = trainerClients.firstIndex(where: { $0.id == clientId }) {
+                    trainerClients[idx] = updatedClient
+                }
+                return (true, "Contraseña modificada correctamente.")
+            } else {
+                return (false, "Error al modificar la contraseña del cliente.")
+            }
+        } catch {
+            return (false, "Error de conexión: \(error.localizedDescription)")
+        }
+    }
+    
+    public func setClientStatus(clientId: String, status: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(clientId)") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = ["status": status]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+            if let idx = trainerClients.firstIndex(where: { $0.id == clientId }) {
+                trainerClients[idx].status = status
+            }
             return true
         }
         return false
@@ -1050,6 +1186,27 @@ public final class PocketBaseManager: ObservableObject {
             if let idx = trainerRoutines.firstIndex(where: { $0.id == routineId }) {
                 trainerRoutines[idx].daysCount = (trainerRoutines[idx].daysCount ?? 0) + 1
             }
+            return true
+        }
+        return false
+    }
+    
+    public func updateRoutineDay(dayId: String, dayName: String, content: String) async -> Bool {
+        guard let token = authToken else { return false }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/routine_days/records/\(dayId)") else { return false }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: Any] = [
+            "day_name": dayName,
+            "content": content
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if let (_, resp) = try? await URLSession.shared.data(for: req),
+           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
             return true
         }
         return false

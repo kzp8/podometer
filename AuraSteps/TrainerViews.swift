@@ -45,6 +45,7 @@ struct TrainerDashboardView: View {
     
     @State private var recentClientsLimit: Int = 3
     @State private var recentUploadsLimit: Int = 3
+    @State private var showCreateClientSheet: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -75,6 +76,9 @@ struct TrainerDashboardView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showCreateClientSheet) {
+                TrainerCreateClientSheet()
+            }
         }
     }
     
@@ -217,6 +221,20 @@ struct TrainerDashboardView: View {
                     .font(.system(size: 17, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
+                
+                Button(action: { showCreateClientSheet = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("Nuevo")
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(themeManager.accentColor)
+                    .cornerRadius(10)
+                }
+                
                 Button(action: onGoToClients) {
                     HStack(spacing: 2) {
                         Text("Ver todos")
@@ -594,6 +612,9 @@ struct TrainerClientDetailView: View {
     @State private var isAssigningRoutine: Bool = false
     @State private var alertMessage: String? = nil
     @State private var showAlert: Bool = false
+    @State private var isActive: Bool = true
+    @State private var isTogglingStatus: Bool = false
+    @State private var showChangePasswordSheet: Bool = false
     
     var body: some View {
         ZStack {
@@ -626,7 +647,11 @@ struct TrainerClientDetailView: View {
         .navigationTitle(client.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            isActive = client.isActive
             await loadClientData()
+        }
+        .sheet(isPresented: $showChangePasswordSheet) {
+            TrainerChangeClientPasswordSheet(client: client)
         }
         .alert("Aviso", isPresented: $showAlert) {
             Button("Aceptar", role: .cancel) {}
@@ -639,26 +664,79 @@ struct TrainerClientDetailView: View {
     
     @ViewBuilder
     private var clientHeaderCard: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(themeManager.accentColor)
-                    .frame(width: 60, height: 60)
-                Text(client.initials)
-                    .font(.system(size: 20, weight: .heavy))
-                    .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(isActive ? themeManager.accentColor : Color.gray.opacity(0.4))
+                        .frame(width: 60, height: 60)
+                    Text(client.initials)
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(client.displayName)
+                            .font(.system(size: 20, weight: .heavy))
+                            .foregroundColor(.white)
+                        // Píldora de estado
+                        Text(isActive ? "Activo" : "Inactivo")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(isActive ? .black : .white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(isActive ? themeManager.accentColor : Color.red.opacity(0.7))
+                            .cornerRadius(6)
+                    }
+                    Text(client.email)
+                        .font(.system(size: 13))
+                        .foregroundColor(.gray)
+                    Text("Registrado: \(client.formattedJoinedDate)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                Spacer()
             }
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(client.displayName)
-                    .font(.system(size: 20, weight: .heavy))
-                    .foregroundColor(.white)
-                Text(client.email)
+            // Botones de acción del cliente
+            HStack(spacing: 12) {
+                // Botón toggle activar/desactivar
+                Button(action: toggleClientStatus) {
+                    HStack(spacing: 6) {
+                        if isTogglingStatus {
+                            ProgressView().tint(isActive ? .white : .black)
+                                .scaleEffect(0.85)
+                        } else {
+                            Image(systemName: isActive ? "person.slash.fill" : "person.fill.checkmark")
+                            Text(isActive ? "Desactivar" : "Activar")
+                                .fontWeight(.bold)
+                        }
+                    }
                     .font(.system(size: 13))
-                    .foregroundColor(.gray)
-                Text("Registrado: \(client.formattedJoinedDate)")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(isActive ? .white : .black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(isActive ? Color.red.opacity(0.75) : themeManager.accentColor)
+                    .cornerRadius(12)
+                }
+                .disabled(isTogglingStatus)
+                
+                // Botón Cambiar Contraseña
+                Button(action: { showChangePasswordSheet = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "key.fill")
+                        Text("Contraseña")
+                            .fontWeight(.bold)
+                    }
+                    .font(.system(size: 13))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.12))
+                    .cornerRadius(12)
+                }
             }
         }
         .padding()
@@ -1019,6 +1097,20 @@ struct TrainerClientDetailView: View {
         self.isLoadingNotes = false
     }
     
+    private func toggleClientStatus() {
+        isTogglingStatus = true
+        let newStatus = isActive ? "inactivo" : "activo"
+        Task {
+            let ok = await pbManager.setClientStatus(clientId: client.id, status: newStatus)
+            await MainActor.run {
+                isTogglingStatus = false
+                if ok {
+                    isActive = !isActive
+                }
+            }
+        }
+    }
+    
     private func sendNote() {
         isSendingNote = true
         Task {
@@ -1167,6 +1259,130 @@ struct TrainerCreateClientSheet: View {
                     dismiss()
                 } else {
                     errorText = "Error al crear cliente. Verifica que el email no esté repetido."
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Sheet para cambiar la contraseña de un cliente por parte del Administrador
+
+@MainActor
+struct TrainerChangeClientPasswordSheet: View {
+    let client: GymUser
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var newPassword: String = ""
+    @State private var confirmPassword: String = ""
+    @State private var errorText: String? = nil
+    @State private var isSubmitting: Bool = false
+    @State private var successText: String? = nil
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Cambiar contraseña de \(client.displayName)")
+                            .font(.title3.bold())
+                            .foregroundColor(.white)
+                        Text("La nueva contraseña será temporal y se le exigirá cambiarla al cliente la próxima vez que inicie sesión.")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Nueva Contraseña Temporal")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        SecureField("Mínimo 8 caracteres", text: $newPassword)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Confirmar Nueva Contraseña")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        SecureField("Repite la contraseña", text: $confirmPassword)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+                    
+                    if let err = errorText {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
+                    if let succ = successText {
+                        Text(succ)
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: changePassword) {
+                        HStack {
+                            if isSubmitting {
+                                ProgressView().tint(.black)
+                            } else {
+                                Image(systemName: "key.fill")
+                                Text("Guardar Nueva Contraseña")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(themeManager.accentColor)
+                        .cornerRadius(14)
+                    }
+                    .disabled(newPassword.count < 8 || newPassword != confirmPassword || isSubmitting)
+                    .opacity((newPassword.count < 8 || newPassword != confirmPassword || isSubmitting) ? 0.6 : 1.0)
+                }
+                .padding(20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cerrar") { dismiss() }
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private func changePassword() {
+        guard newPassword == confirmPassword else {
+            errorText = "Las contraseñas no coinciden."
+            return
+        }
+        
+        isSubmitting = true
+        errorText = nil
+        successText = nil
+        
+        Task {
+            let res = await pbManager.changeClientPassword(clientId: client.id, newPassword: newPassword)
+            await MainActor.run {
+                isSubmitting = false
+                if res.success {
+                    successText = res.message
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        dismiss()
+                    }
+                } else {
+                    errorText = res.message
                 }
             }
         }
@@ -1348,6 +1564,7 @@ struct TrainerRoutineDetailView: View {
     @State private var days: [GymRoutineDay] = []
     @State private var isLoading: Bool = true
     @State private var showAddDaySheet: Bool = false
+    @State private var editingDay: GymRoutineDay? = nil
     
     var body: some View {
         ZStack {
@@ -1413,9 +1630,24 @@ struct TrainerRoutineDetailView: View {
                     } else {
                         ForEach(days) { day in
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(day.title)
-                                    .font(.system(size: 16, weight: .heavy))
-                                    .foregroundColor(themeManager.accentColor)
+                                HStack {
+                                    Text(day.title)
+                                        .font(.system(size: 16, weight: .heavy))
+                                        .foregroundColor(themeManager.accentColor)
+                                    Spacer()
+                                    Button(action: { editingDay = day }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "pencil")
+                                            Text("Editar")
+                                        }
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(Color.white.opacity(0.08))
+                                        .cornerRadius(8)
+                                    }
+                                }
                                 
                                 if let content = day.content, !content.isEmpty {
                                     Text(content)
@@ -1441,6 +1673,11 @@ struct TrainerRoutineDetailView: View {
         }
         .sheet(isPresented: $showAddDaySheet) {
             TrainerAddRoutineDaySheet(routineId: routine.id) {
+                loadDays()
+            }
+        }
+        .sheet(item: $editingDay) { day in
+            TrainerEditRoutineDaySheet(day: day) {
                 loadDays()
             }
         }
@@ -1652,6 +1889,103 @@ struct TrainerAddRoutineDaySheet: View {
     }
 }
 
+// MARK: - Modal Editar Día de Rutina
+
+@MainActor
+struct TrainerEditRoutineDaySheet: View {
+    let day: GymRoutineDay
+    var onSaved: () -> Void = {}
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var dayName: String = ""
+    @State private var content: String = ""
+    @State private var isSaving: Bool = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Editar Día de Entrenamiento")
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundColor(.white)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Nombre del día")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextField("Ej: Día 1: Pecho y Tríceps", text: $dayName)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Contenido y ejercicios")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextEditor(text: $content)
+                            .frame(height: 180)
+                            .padding(8)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+
+                    Spacer()
+
+                    Button(action: saveDay) {
+                        HStack {
+                            if isSaving {
+                                ProgressView().tint(.black)
+                            } else {
+                                Text("Guardar Cambios")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(themeManager.accentColor)
+                        .cornerRadius(14)
+                    }
+                    .disabled(dayName.isEmpty || isSaving)
+                }
+                .padding(20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .onAppear {
+            dayName = day.day_name ?? ""
+            content = day.content ?? ""
+        }
+    }
+
+    private func saveDay() {
+        isSaving = true
+        Task {
+            let ok = await pbManager.updateRoutineDay(dayId: day.id, dayName: dayName, content: content)
+            await MainActor.run {
+                isSaving = false
+                if ok {
+                    onSaved()
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
 // MARK: - 4. PESTAÑA GALERÍA (TRAINER GALLERY VIEW)
 
 @MainActor
@@ -1660,7 +1994,7 @@ struct TrainerGalleryView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var tabScrollManager: TabScrollManager
     
-    @State private var filterState: String = "Todos" // "Todos", "Pendiente", "Visto"
+    @State private var filterState: String = "Pendiente" // "Todos", "Pendiente", "Visto"
     
     // Agrupar las entregas por cliente
     var clientsWithUploads: [(client: GymUser, uploads: [GymProgressUpload])] {
@@ -1943,10 +2277,7 @@ struct TrainerClientGalleryView: View {
                             .padding(.top, 20)
                     } else {
                         ForEach(clientUploads) { upload in
-                            NavigationLink(value: upload) {
-                                trainerUploadCard(upload: upload)
-                            }
-                            .buttonStyle(.plain)
+                            trainerUploadCard(upload: upload)
                         }
                     }
                 }
@@ -2066,26 +2397,26 @@ struct TrainerUploadDetailView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    // Estado de revisión y Botón "Marcar como revisado"
+                    // Estado de revisión y Botón toggle revisado/pendiente
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(isSeen ? "Estado: Revisado" : "Estado: Pendiente")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(isSeen ? Color(hex: "34D399") : .orange)
-                            Text(isSeen ? "Sin entregas pendientes acumuladas" : "Marca para quitar el aviso de pendiente")
+                            Text(isSeen ? "Toca el botón para marcar como pendiente" : "Marca para quitar el aviso de pendiente")
                                 .font(.system(size: 11))
                                 .foregroundColor(.gray)
                         }
                         
                         Spacer()
                         
-                        Button(action: markAsReviewed) {
+                        Button(action: toggleReviewed) {
                             HStack(spacing: 6) {
                                 if isMarkingSeen {
                                     ProgressView().tint(isSeen ? .gray : .black)
                                 } else {
-                                    Image(systemName: isSeen ? "checkmark.circle.fill" : "checkmark.seal.fill")
-                                    Text(isSeen ? "Revisado" : "Marcar Revisado")
+                                    Image(systemName: isSeen ? "arrow.uturn.left" : "checkmark.seal.fill")
+                                    Text(isSeen ? "Quitar" : "Marcar Revisado")
                                         .font(.system(size: 13, weight: .bold))
                                 }
                             }
@@ -2095,11 +2426,18 @@ struct TrainerUploadDetailView: View {
                             .background(isSeen ? Color.white.opacity(0.12) : themeManager.accentColor)
                             .cornerRadius(12)
                         }
-                        .disabled(isSeen || isMarkingSeen)
+                        .disabled(isMarkingSeen)
                     }
                     .padding()
                     .background(Color.white.opacity(0.04))
                     .cornerRadius(14)
+                    // Absorbe todos los taps para evitar que pasen al botón de vídeo debajo
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !isMarkingSeen {
+                            toggleReviewed()
+                        }
+                    }
 
                     // Visor de foto o vídeo (al pulsar se abre el visor modal en pantalla completa)
                     if let fileName = upload.file,
@@ -2241,14 +2579,15 @@ struct TrainerUploadDetailView: View {
         }
     }
     
-    private func markAsReviewed() {
+    private func toggleReviewed() {
         isMarkingSeen = true
+        let newValue = !isSeen
         Task {
-            let ok = await pbManager.markUploadAsSeen(uploadId: upload.id)
+            let ok = await pbManager.markUploadAsSeen(uploadId: upload.id, seen: newValue)
             await MainActor.run {
                 isMarkingSeen = false
                 if ok {
-                    isSeen = true
+                    isSeen = newValue
                 }
             }
         }

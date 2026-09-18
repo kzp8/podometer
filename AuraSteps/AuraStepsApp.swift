@@ -56,6 +56,11 @@ struct AuraStepsApp: App {
                     .environmentObject(achievementsManager)
                     .interactiveDismissDisabled(true)
                 }
+                .fullScreenCover(isPresented: $pocketBaseManager.mustChangePassword) {
+                    ForceChangePasswordView()
+                        .environmentObject(pocketBaseManager)
+                        .environmentObject(themeManager)
+                }
                 .task {
                     if HKHealthStore.isHealthDataAvailable() {
                         await motionManager.requestHealthKitAuthorization()

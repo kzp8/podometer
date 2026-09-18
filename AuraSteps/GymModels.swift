@@ -11,6 +11,7 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     public var trainer: String?
     public var status: String? // "activo", "inactivo" o nil
     public var created: String?
+    public var must_change_password: Bool?
     
     public var userRole: String {
         return role ?? "client"
@@ -48,8 +49,9 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     
     public var isAdmin: Bool { userRole == "admin" }
     public var isActive: Bool { status?.lowercased() != "inactivo" }
+    public var needsPasswordChange: Bool { must_change_password == true }
     
-    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, trainer: String? = nil, status: String? = "activo", created: String? = nil) {
+    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, trainer: String? = nil, status: String? = "activo", created: String? = nil, must_change_password: Bool? = nil) {
         self.id = id
         self.email = email
         self.name = name
@@ -59,6 +61,7 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
         self.trainer = trainer
         self.status = status
         self.created = created
+        self.must_change_password = must_change_password
     }
 }
 

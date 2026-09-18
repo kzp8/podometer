@@ -83,7 +83,7 @@ struct SettingsView: View {
                     let generator = UINotificationFeedbackGenerator()
                     generator.notificationOccurred(.warning)
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                        pbManager.logout()
+                        pbManager.logoutManual()
                         tabScrollManager.selectTab(0)
                         deepLinkManager.deleteKeychainConfig()
                         motionManager.clearAllData()
@@ -598,7 +598,7 @@ struct SettingsView: View {
                         Button("Cerrar Sesión") {
                             let generator = UIImpactFeedbackGenerator(style: .medium)
                             generator.impactOccurred()
-                            pbManager.logout()
+                            pbManager.logoutManual()
                         }
                         .font(.caption)
                         .fontWeight(.bold)
