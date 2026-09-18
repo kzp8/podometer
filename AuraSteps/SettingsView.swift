@@ -535,7 +535,7 @@ struct SettingsView: View {
                     Text("Conectado 🟢")
                         .font(.caption2)
                         .fontWeight(.bold)
-                        .foregroundColor(.emeraldGreen)
+                        .foregroundColor(.green)
                 }
             }
             
