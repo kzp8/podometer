@@ -2069,6 +2069,8 @@ struct TrainerUploadDetailView: View {
     @State private var isSendingFeedback: Bool = false
     @State private var feedbackSentSuccess: Bool = false
     @State private var isPresentingMediaViewer: Bool = false
+    @State private var isSeen: Bool = false
+    @State private var isMarkingSeen: Bool = false
     
     var body: some View {
         ZStack {
@@ -2076,6 +2078,41 @@ struct TrainerUploadDetailView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    // Estado de revisión y Botón "Marcar como revisado"
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(isSeen ? "Estado: Revisado" : "Estado: Pendiente")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(isSeen ? Color(hex: "34D399") : .orange)
+                            Text(isSeen ? "Sin entregas pendientes acumuladas" : "Marca para quitar el aviso de pendiente")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: markAsReviewed) {
+                            HStack(spacing: 6) {
+                                if isMarkingSeen {
+                                    ProgressView().tint(isSeen ? .gray : .black)
+                                } else {
+                                    Image(systemName: isSeen ? "checkmark.circle.fill" : "checkmark.seal.fill")
+                                    Text(isSeen ? "Revisado" : "Marcar Revisado")
+                                        .font(.system(size: 13, weight: .bold))
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .foregroundColor(isSeen ? .white : .black)
+                            .background(isSeen ? Color.white.opacity(0.12) : themeManager.accentColor)
+                            .cornerRadius(12)
+                        }
+                        .disabled(isSeen || isMarkingSeen)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(14)
+
                     // Visor de foto o vídeo (al pulsar se abre el visor modal en pantalla completa)
                     if let fileName = upload.file,
                        let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
@@ -2209,8 +2246,22 @@ struct TrainerUploadDetailView: View {
             GymMediaViewerModal(item: upload)
         }
         .onAppear {
+            isSeen = upload.seen_by_admin == true
             if let existing = upload.admin_response {
                 feedbackText = existing
+            }
+        }
+    }
+    
+    private func markAsReviewed() {
+        isMarkingSeen = true
+        Task {
+            let ok = await pbManager.markUploadAsSeen(uploadId: upload.id)
+            await MainActor.run {
+                isMarkingSeen = false
+                if ok {
+                    isSeen = true
+                }
             }
         }
     }
@@ -2223,6 +2274,7 @@ struct TrainerUploadDetailView: View {
                 isSendingFeedback = false
                 if ok {
                     feedbackSentSuccess = true
+                    isSeen = true
                 }
             }
         }
