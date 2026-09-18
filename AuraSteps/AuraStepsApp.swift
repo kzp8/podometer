@@ -102,6 +102,7 @@ struct AuraStepsApp: App {
                     await pocketBaseManager.syncAPNsDeviceToken()
                     await pocketBaseManager.checkTrainerUpdatesAndNotify()
                 }
+                tabScrollManager.selectTab(1)
             } else {
                 tabScrollManager.selectTab(0)
             }

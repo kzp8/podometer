@@ -21,7 +21,16 @@ struct GymRoutineView: View {
                 AppBackgroundView()
                 
                 if pbManager.routineDays.isEmpty {
-                    emptyStateView
+                    ScrollView {
+                        emptyStateView
+                            .padding(.top, 60)
+                    }
+                    .refreshable {
+                        if let user = pbManager.currentUser {
+                            await pbManager.fetchActiveRoutine(forUserId: user.id)
+                            await pbManager.fetchClientNotes(forUserId: user.id)
+                        }
+                    }
                 } else {
                     ScrollViewReader { proxy in
                         ScrollView {
@@ -48,6 +57,12 @@ struct GymRoutineView: View {
                             .padding(.top, 16)
                             .padding(.bottom, 75)
                         }
+                        .refreshable {
+                            if let user = pbManager.currentUser {
+                                await pbManager.fetchActiveRoutine(forUserId: user.id)
+                                await pbManager.fetchClientNotes(forUserId: user.id)
+                            }
+                        }
                         .onChange(of: tabScrollManager.scrollEvent) { event in
                             guard let event = event, event.tab == 2 else { return }
                             if event.animated {
@@ -71,12 +86,8 @@ struct GymRoutineView: View {
             }
             .task {
                 if let user = pbManager.currentUser {
-                    if pbManager.routineDays.isEmpty {
-                        await pbManager.fetchActiveRoutine(forUserId: user.id)
-                    }
-                    if pbManager.clientNotes.isEmpty {
-                        await pbManager.fetchClientNotes(forUserId: user.id)
-                    }
+                    await pbManager.fetchActiveRoutine(forUserId: user.id)
+                    await pbManager.fetchClientNotes(forUserId: user.id)
                 }
             }
         }
@@ -99,12 +110,36 @@ struct GymRoutineView: View {
                 .font(.title3)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
-            Text("Tu entrenador aún no te ha asignado una rutina activa.")
+            Text("Tu entrenador aún no te ha asignado una rutina activa o está configurándola.")
                 .font(.caption)
                 .foregroundColor(.gray)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+            
+            Button(action: {
+                if let user = pbManager.currentUser {
+                    Task {
+                        await pbManager.fetchActiveRoutine(forUserId: user.id)
+                        await pbManager.fetchClientNotes(forUserId: user.id)
+                    }
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Comprobar de nuevo")
+                        .fontWeight(.bold)
+                }
+                .font(.subheadline)
+                .foregroundColor(.black)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 24)
+                .background(themeManager.accentColor)
+                .cornerRadius(14)
+            }
+            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
     }
     
     @ViewBuilder

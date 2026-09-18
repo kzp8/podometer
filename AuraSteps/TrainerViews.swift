@@ -1163,80 +1163,193 @@ struct TrainerCreateClientSheet: View {
     @State private var name: String = ""
     @State private var email: String = ""
     @State private var password: String = ""
+    @State private var selectedColorKey: String = "from-blue-500 to-blue-700"
     @State private var isCreating: Bool = false
     @State private var errorText: String? = nil
+    
+    struct AvatarColorOption: Identifiable {
+        let id: String
+        let name: String
+        let colors: [Color]
+    }
+    
+    private var colorOptions: [AvatarColorOption] {
+        [
+            AvatarColorOption(id: "from-blue-500 to-blue-700", name: "Azul", colors: [Color(hex: "3B82F6"), Color(hex: "1D4ED8")]),
+            AvatarColorOption(id: "from-purple-500 to-purple-700", name: "Púrpura", colors: [Color(hex: "A855F7"), Color(hex: "7E22CE")]),
+            AvatarColorOption(id: "from-emerald-500 to-emerald-700", name: "Esmeralda", colors: [Color(hex: "10B981"), Color(hex: "047857")]),
+            AvatarColorOption(id: "from-orange-500 to-orange-700", name: "Naranja", colors: [Color(hex: "F97316"), Color(hex: "C2410C")]),
+            AvatarColorOption(id: "from-rose-500 to-rose-700", name: "Rosa", colors: [Color(hex: "F43F5E"), Color(hex: "BE123C")]),
+            AvatarColorOption(id: "from-brand to-accent-dark", name: "Dorado", colors: [themeManager.accentColor, themeManager.accentColor.opacity(0.65)])
+        ]
+    }
+    
+    private var computedInitials: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "?" }
+        let parts = trimmed.split(separator: " ").filter { !$0.isEmpty }
+        if parts.count >= 2, let f = parts[0].first, let s = parts[1].first {
+            return "\(f)\(s)".uppercased()
+        } else if let f = trimmed.first {
+            return "\(f)".uppercased()
+        }
+        return "?"
+    }
+    
+    private var selectedColors: [Color] {
+        colorOptions.first(where: { $0.id == selectedColorKey })?.colors ?? [Color.blue, Color.cyan]
+    }
     
     var body: some View {
         NavigationStack {
             ZStack {
                 AppBackgroundView()
                 
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Crear Nuevo Alumno")
-                        .font(.system(size: 20, weight: .black))
-                        .foregroundColor(.white)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Nombre completo")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        TextField("Carlos Martínez", text: $name)
-                            .padding(12)
-                            .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Crear Nuevo Alumno")
+                            .font(.system(size: 22, weight: .black))
                             .foregroundColor(.white)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Email de acceso")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        TextField("alumno@gym.com", text: $email)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .padding(12)
-                            .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
-                            .foregroundColor(.white)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Contraseña inicial")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        SecureField("••••••••", text: $password)
-                            .padding(12)
-                            .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
-                            .foregroundColor(.white)
-                    }
-                    
-                    if let err = errorText {
-                        Text(err)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: createClient) {
-                        HStack {
-                            if isCreating {
-                                ProgressView().tint(.black)
-                            } else {
-                                Text("Crear y Asignar a mi Cuenta")
-                                    .fontWeight(.bold)
+                        
+                        // Vista Previa de Avatar & Color
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: selectedColors,
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 64, height: 64)
+                                    .shadow(color: selectedColors.first?.opacity(0.4) ?? .clear, radius: 8)
+                                
+                                Text(computedInitials)
+                                    .font(.system(size: 24, weight: .heavy))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Foto de Perfil (Web)")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text("Degradado e iniciales para el avatar del alumno")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
                             }
                         }
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(themeManager.accentColor)
-                        .cornerRadius(14)
+                        .padding(14)
+                        .background(Color.white.opacity(0.04))
+                        .cornerRadius(16)
+                        
+                        // Selector de colores del avatar
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Color del avatar")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            HStack(spacing: 12) {
+                                ForEach(colorOptions) { opt in
+                                    Button(action: {
+                                        let gen = UIImpactFeedbackGenerator(style: .light)
+                                        gen.impactOccurred()
+                                        selectedColorKey = opt.id
+                                    }) {
+                                        ZStack {
+                                            Circle()
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: opt.colors,
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .frame(width: 36, height: 36)
+                                            
+                                            if selectedColorKey == opt.id {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 13, weight: .heavy))
+                                                    .foregroundColor(.white)
+                                            }
+                                        }
+                                        .overlay(
+                                            Circle()
+                                                .stroke(selectedColorKey == opt.id ? Color.white : Color.clear, lineWidth: 2)
+                                                .padding(-2)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Campos de Formulario
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Nombre completo")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            TextField("Carlos Martínez", text: $name)
+                                .padding(12)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(12)
+                                .foregroundColor(.white)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Email de acceso")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            TextField("alumno@gym.com", text: $email)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                                .padding(12)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(12)
+                                .foregroundColor(.white)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Contraseña inicial (temporal)")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            SecureField("••••••••", text: $password)
+                                .padding(12)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(12)
+                                .foregroundColor(.white)
+                            Text("Al iniciar sesión por primera vez con esta clave temporal, se le exigirá al alumno cambiarla.")
+                                .font(.caption2)
+                                .foregroundColor(.gray.opacity(0.8))
+                        }
+                        
+                        if let err = errorText {
+                            Text(err)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                        
+                        Button(action: createClient) {
+                            HStack {
+                                if isCreating {
+                                    ProgressView().tint(.black)
+                                } else {
+                                    Image(systemName: "person.badge.plus")
+                                    Text("Crear y Asignar a mi Cuenta")
+                                        .fontWeight(.bold)
+                                }
+                            }
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(themeManager.accentColor)
+                            .cornerRadius(14)
+                        }
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty || password.count < 8 || isCreating)
+                        .opacity((name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || email.isEmpty || password.count < 8 || isCreating) ? 0.6 : 1.0)
+                        .padding(.top, 6)
                     }
-                    .disabled(name.isEmpty || email.isEmpty || password.count < 8 || isCreating)
+                    .padding(20)
                 }
-                .padding(20)
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1252,13 +1365,18 @@ struct TrainerCreateClientSheet: View {
         isCreating = true
         errorText = nil
         Task {
-            let ok = await pbManager.createClient(email: email, name: name, password: password)
+            let result = await pbManager.createClient(
+                email: email,
+                name: name,
+                password: password,
+                color: selectedColorKey
+            )
             await MainActor.run {
                 isCreating = false
-                if ok {
+                if result.success {
                     dismiss()
                 } else {
-                    errorText = "Error al crear cliente. Verifica que el email no esté repetido."
+                    errorText = result.message ?? "Error al crear cliente. Verifica que el email no esté repetido."
                 }
             }
         }

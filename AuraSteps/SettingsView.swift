@@ -649,7 +649,11 @@ struct SettingsView: View {
                     
                     Button(action: {
                         Task { @MainActor in
-                            _ = await pbManager.login(identity: pbEmailInput, password: pbPasswordInput)
+                            let success = await pbManager.login(identity: pbEmailInput, password: pbPasswordInput)
+                            if success {
+                                pbPasswordInput = ""
+                                tabScrollManager.selectTab(1)
+                            }
                         }
                     }) {
                         HStack {

@@ -54,6 +54,11 @@ struct GymGalleryView: View {
                         .padding(.top, 16)
                         .padding(.bottom, isSelectionMode ? 145 : 75)
                     }
+                    .refreshable {
+                        if let user = pbManager.currentUser {
+                            await pbManager.fetchProgressUploads(forUserId: user.id)
+                        }
+                    }
                     .onChange(of: tabScrollManager.scrollEvent) { event in
                         guard let event = event, event.tab == 3 else { return }
                         if event.animated {
@@ -126,7 +131,7 @@ struct GymGalleryView: View {
                 Text("Esta acción eliminará de forma permanente los archivos seleccionados.")
             }
             .task {
-                if pbManager.progressUploads.isEmpty, let user = pbManager.currentUser {
+                if let user = pbManager.currentUser {
                     await pbManager.fetchProgressUploads(forUserId: user.id)
                 }
             }
@@ -186,7 +191,7 @@ struct GymGalleryView: View {
                     .frame(width: 72, height: 72)
                 Image(systemName: "photo.on.rectangle.angled")
                     .font(.system(size: 32))
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.accentColor)
             }
             
             Text("Sin archivos aún")
@@ -194,9 +199,28 @@ struct GymGalleryView: View {
                 .fontWeight(.bold)
                 .foregroundColor(.white)
             
-            Text("Sube tu primer vídeo o foto de progreso")
+            Text("Sube vídeos o fotos ejecutando tus ejercicios para recibir correcciones de tu entrenador.")
                 .font(.caption)
                 .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            
+            Button(action: {
+                showUploadSheet = true
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.circle.fill")
+                    Text("Subir Foto o Vídeo")
+                        .fontWeight(.bold)
+                }
+                .font(.subheadline)
+                .foregroundColor(.black)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 24)
+                .background(themeManager.accentColor)
+                .cornerRadius(14)
+            }
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)

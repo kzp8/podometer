@@ -9,6 +9,8 @@ struct GymDashboardView: View {
     
     var onNavigateToRoutine: () -> Void = {}
     
+    @State private var showUploadSheet: Bool = false
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -39,6 +41,9 @@ struct GymDashboardView: View {
                         .padding(.top, 16)
                         .padding(.bottom, 75)
                     }
+                    .refreshable {
+                        await pbManager.refreshAllGymData()
+                    }
                     .onChange(of: tabScrollManager.scrollEvent) { event in
                         guard let event = event, event.tab == 1 else { return }
                         if event.animated {
@@ -53,6 +58,11 @@ struct GymDashboardView: View {
             }
             .navigationTitle("Mi Panel")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showUploadSheet) {
+                GymProgressUploadView()
+                    .environmentObject(pbManager)
+                    .environmentObject(themeManager)
+            }
             .task {
                 await pbManager.refreshAllGymData()
             }
@@ -199,13 +209,36 @@ struct GymDashboardView: View {
                     )
                 }
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
+                    Image(systemName: "dumbbell.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.gray.opacity(0.6))
                     Text("Sin rutina asignada")
                         .font(.headline)
                         .foregroundColor(.white)
-                    Text("Tu entrenador aún no te ha asignado una rutina activa.")
+                    Text("Tu entrenador aún no te ha asignado una rutina activa o la está preparando.")
                         .font(.caption)
                         .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                    Button(action: {
+                        Task {
+                            await pbManager.refreshAllGymData()
+                        }
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Comprobar de nuevo")
+                                .fontWeight(.semibold)
+                        }
+                        .font(.caption)
+                        .foregroundColor(themeManager.accentColor)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.08))
+                        .cornerRadius(10)
+                    }
+                    .padding(.top, 4)
                 }
                 .padding(.vertical, 16)
                 .frame(maxWidth: .infinity)
@@ -223,25 +256,64 @@ struct GymDashboardView: View {
     @ViewBuilder
     private var recentUploadsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "clock.fill")
-                    .foregroundColor(themeManager.accentColor)
-                    .font(.subheadline)
-                Text("Mis últimas subidas")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.fill")
+                        .foregroundColor(themeManager.accentColor)
+                        .font(.subheadline)
+                    Text("Mis últimas subidas")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                }
+                Spacer()
+                Button(action: { showUploadSheet = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Subir")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(themeManager.accentColor)
+                    .cornerRadius(10)
+                }
             }
             
             if pbManager.progressUploads.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
+                    Image(systemName: "arrow.up.doc.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(themeManager.accentColor.opacity(0.8))
                     Text("Aún no has subido ningún vídeo o foto")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    Text("Comparte vídeos o fotos de tus ejercicios para que tu entrenador los revise y corrija.")
                         .font(.caption)
                         .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                    Button(action: { showUploadSheet = true }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.up.circle.fill")
+                            Text("Subir mi primera entrega")
+                                .fontWeight(.bold)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(themeManager.accentColor)
+                        .cornerRadius(12)
+                    }
+                    .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
-                .background(Color.white.opacity(0.03))
+                .background(Color.white.opacity(0.04))
                 .cornerRadius(16)
             } else {
                 VStack(spacing: 10) {

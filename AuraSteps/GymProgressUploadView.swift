@@ -14,9 +14,25 @@ struct GymProgressUploadView: View {
     @State private var fileName: String = "progress.jpg"
     @State private var isVideo: Bool = false
     @State private var notesText: String = ""
+    @State private var isLoadingMedia: Bool = false
     @State private var isUploading: Bool = false
     @State private var uploadSuccess: Bool = false
     @State private var uploadError: String?
+    
+    struct VideoTransferable: Transferable {
+        let url: URL
+        static var transferRepresentation: some TransferRepresentation {
+            FileRepresentation(contentType: .movie) { movie in
+                SentTransferredFile(movie.url)
+            } importing: { received in
+                let tempDir = FileManager.default.temporaryDirectory
+                let copyURL = tempDir.appendingPathComponent("upload_\(UUID().uuidString).mp4")
+                try? FileManager.default.removeItem(at: copyURL)
+                try FileManager.default.copyItem(at: received.file, to: copyURL)
+                return VideoTransferable(url: copyURL)
+            }
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -101,12 +117,27 @@ struct GymProgressUploadView: View {
                             }
                         }
                         
+                        // Estado Cargando Archivo
+                        if isLoadingMedia {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(themeManager.accentColor)
+                                Text("Procesando archivo multimedia...")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                        }
+                        
                         // Vista Previa de Selección
-                        if let data = selectedData {
+                        if let _ = selectedData {
                             HStack(spacing: 10) {
                                 Image(systemName: isVideo ? "video.circle.fill" : "photo.circle.fill")
                                     .foregroundColor(themeManager.accentColor)
-                                Text("Archivo seleccionado: \(fileName)")
+                                Text("Archivo listo: \(fileName)")
                                     .font(.caption)
                                     .foregroundColor(.white)
                                     .lineLimit(1)
@@ -164,23 +195,25 @@ struct GymProgressUploadView: View {
                                             .fontWeight(.bold)
                                     } else {
                                         Image(systemName: "paperplane.fill")
-                                        Text("Enviar")
+                                        Text("Enviar a mi Entrenador")
                                             .fontWeight(.bold)
                                     }
                                 }
                                 .font(.headline)
-                                .foregroundColor(.white)
+                                .foregroundColor(selectedData != nil ? .black : .white.opacity(0.4))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(selectedData != nil || !notesText.isEmpty ? themeManager.accentColor : Color.white.opacity(0.08))
+                                .background(selectedData != nil ? themeManager.accentColor : Color.white.opacity(0.08))
                                 .cornerRadius(16)
                             }
-                            .disabled(isUploading || (selectedData == nil && notesText.isEmpty))
+                            .disabled(isUploading || isLoadingMedia || selectedData == nil)
                             
-                            Text("Añade un archivo o escribe un mensaje")
-                                .font(.caption2)
-                                .foregroundColor(.gray)
-                                .frame(maxWidth: .infinity)
+                            if selectedData == nil {
+                                Text("Selecciona una foto o vídeo arriba para poder enviar")
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -198,14 +231,53 @@ struct GymProgressUploadView: View {
                 }
             }
             .onChange(of: selectedItem) { newItem in
+                guard let newItem = newItem else {
+                    self.selectedData = nil
+                    return
+                }
+                self.isLoadingMedia = true
+                self.uploadError = nil
                 Task {
-                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                        self.selectedData = data
-                        if let mime = newItem?.supportedContentTypes.first?.preferredMIMEType {
-                            self.mimeType = mime
-                            self.isVideo = mime.contains("video")
-                            self.fileName = isVideo ? "video_progreso.mp4" : "foto_progreso.jpg"
+                    // 1. Intentar cargar como vídeo
+                    if let movie = try? await newItem.loadTransferable(type: VideoTransferable.self),
+                       let data = try? Data(contentsOf: movie.url) {
+                        await MainActor.run {
+                            self.selectedData = data
+                            self.mimeType = "video/mp4"
+                            self.fileName = "video_progreso.mp4"
+                            self.isVideo = true
+                            self.isLoadingMedia = false
                         }
+                        return
+                    }
+                    
+                    // 2. Intentar cargar como Data directa (foto o vídeo)
+                    if let data = try? await newItem.loadTransferable(type: Data.self) {
+                        let isVid = newItem.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) })
+                        await MainActor.run {
+                            if isVid {
+                                self.selectedData = data
+                                self.mimeType = "video/mp4"
+                                self.fileName = "video_progreso.mp4"
+                                self.isVideo = true
+                            } else {
+                                if let uiImage = UIImage(data: data), let jpeg = uiImage.jpegData(compressionQuality: 0.85) {
+                                    self.selectedData = jpeg
+                                } else {
+                                    self.selectedData = data
+                                }
+                                self.mimeType = "image/jpeg"
+                                self.fileName = "foto_progreso.jpg"
+                                self.isVideo = false
+                            }
+                            self.isLoadingMedia = false
+                        }
+                        return
+                    }
+                    
+                    await MainActor.run {
+                        self.isLoadingMedia = false
+                        self.uploadError = "No se pudo leer el archivo seleccionado. Prueba con otro archivo."
                     }
                 }
             }
@@ -213,12 +285,13 @@ struct GymProgressUploadView: View {
     }
     
     private func performUpload() {
+        guard let data = selectedData else { return }
         isUploading = true
         uploadError = nil
         
         Task { @MainActor in
             let success = await pbManager.uploadProgressMedia(
-                fileData: selectedData,
+                fileData: data,
                 fileName: fileName,
                 mimeType: mimeType,
                 notes: notesText
@@ -231,7 +304,7 @@ struct GymProgressUploadView: View {
                     dismiss()
                 }
             } else {
-                uploadError = "Error al enviar. Por favor comprueba tu conexión."
+                uploadError = pbManager.errorMessage ?? "Error al enviar. Por favor comprueba tu conexión."
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
         }

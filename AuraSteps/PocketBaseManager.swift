@@ -640,12 +640,20 @@ public final class PocketBaseManager: ObservableObject {
         req.httpBody = body
         
         do {
-            let (_, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await URLSession.shared.data(for: req)
             if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
                 await fetchProgressUploads(forUserId: user.id)
                 return true
+            } else if let httpResp = response as? HTTPURLResponse {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let message = json["message"] as? String {
+                    self.errorMessage = "Error (\(httpResp.statusCode)): \(message)"
+                } else {
+                    self.errorMessage = "Error al subir archivo (código \(httpResp.statusCode))."
+                }
             }
         } catch {
+            self.errorMessage = "Error de conexión: \(error.localizedDescription)"
             print("Error en subida de progreso: \(error.localizedDescription)")
         }
         return false
@@ -969,20 +977,37 @@ public final class PocketBaseManager: ObservableObject {
         return false
     }
     
-    public func createClient(email: String, name: String, password: String) async -> Bool {
-        guard let token = authToken, let user = currentUser, user.isAdmin else { return false }
-        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records") else { return false }
+    public func createClient(email: String, name: String, password: String, color: String = "from-blue-500 to-blue-700") async -> (success: Bool, message: String?) {
+        guard let token = authToken, let user = currentUser, user.isAdmin else {
+            return (false, "No tienes permisos de administrador.")
+        }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records") else {
+            return (false, "URL del servidor no válida.")
+        }
         
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = trimmedName.split(separator: " ").filter { !$0.isEmpty }
+        var initials = "C"
+        if parts.count >= 2, let f = parts[0].first, let s = parts[1].first {
+            initials = "\(f)\(s)".uppercased()
+        } else if let f = trimmedName.first {
+            initials = "\(f)".uppercased()
+        }
+        
         let body: [String: Any] = [
-            "email": email,
+            "email": email.trimmingCharacters(in: .whitespacesAndNewlines),
+            "emailVisibility": true,
             "password": password,
             "passwordConfirm": password,
-            "name": name,
+            "name": trimmedName,
+            "full_name": trimmedName,
+            "avatar_initials": initials,
+            "color": color,
             "role": "client",
             "trainer": user.id,
             "status": "activo",
@@ -990,13 +1015,32 @@ public final class PocketBaseManager: ObservableObject {
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
-        if let (data, resp) = try? await URLSession.shared.data(for: req),
-           let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
-           let newClient = try? JSONDecoder().decode(GymUser.self, from: data) {
-            self.trainerClients.insert(newClient, at: 0)
-            return true
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            if let httpResp = resp as? HTTPURLResponse, (200...299).contains(httpResp.statusCode) {
+                if let newClient = try? JSONDecoder().decode(GymUser.self, from: data) {
+                    self.trainerClients.insert(newClient, at: 0)
+                } else {
+                    await fetchTrainerClients()
+                }
+                return (true, nil)
+            } else if let httpResp = resp as? HTTPURLResponse {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let message = json["message"] as? String {
+                        if let dataDict = json["data"] as? [String: Any],
+                           let emailErr = dataDict["email"] as? [String: Any],
+                           let emailMsg = emailErr["message"] as? String {
+                            return (false, "Email: \(emailMsg)")
+                        }
+                        return (false, message)
+                    }
+                }
+                return (false, "Error HTTP \(httpResp.statusCode) al crear el alumno.")
+            }
+        } catch {
+            return (false, "Error de red: \(error.localizedDescription)")
         }
-        return false
+        return (false, "No se pudo crear el alumno.")
     }
     
     public func changeOwnPassword(oldPassword: String, newPassword: String) async -> (success: Bool, message: String) {

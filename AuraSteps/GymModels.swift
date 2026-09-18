@@ -3,7 +3,7 @@ import Foundation
 /// Modelo que representa un usuario de PocketBase (Cliente o Entrenador Admin).
 public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     public let id: String
-    public let email: String
+    public var email: String
     public var name: String?
     public var full_name: String?
     public var role: String? // "admin" o "client"
@@ -12,6 +12,8 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     public var status: String? // "activo", "inactivo" o nil
     public var created: String?
     public var must_change_password: Bool?
+    public var color: String?
+    public var avatar_initials: String?
     
     public var userRole: String {
         return role ?? "client"
@@ -20,17 +22,21 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     public var displayName: String {
         if let full = full_name, !full.isEmpty { return full }
         if let n = name, !n.isEmpty { return n }
-        return email
+        if !email.isEmpty { return email }
+        return "Cliente"
     }
     
     public var initials: String {
+        if let ai = avatar_initials, !ai.isEmpty {
+            return ai.uppercased()
+        }
         let parts = displayName.split(separator: " ")
         if parts.count >= 2, let first = parts[0].first, let second = parts[1].first {
             return "\(first)\(second)".uppercased()
         } else if let first = displayName.first {
             return "\(first)".uppercased()
         }
-        return "U"
+        return "C"
     }
     
     public var formattedJoinedDate: String {
@@ -51,7 +57,43 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
     public var isActive: Bool { status?.lowercased() != "inactivo" }
     public var needsPasswordChange: Bool { must_change_password == true }
     
-    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, trainer: String? = nil, status: String? = "activo", created: String? = nil, must_change_password: Bool? = nil) {
+    enum CodingKeys: String, CodingKey {
+        case id, email, name, full_name, role, avatar, trainer, status, created, must_change_password, color, avatar_initials
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.email = (try? container.decodeIfPresent(String.self, forKey: .email)) ?? ""
+        self.name = try? container.decodeIfPresent(String.self, forKey: .name)
+        self.full_name = try? container.decodeIfPresent(String.self, forKey: .full_name)
+        self.role = try? container.decodeIfPresent(String.self, forKey: .role)
+        self.avatar = try? container.decodeIfPresent(String.self, forKey: .avatar)
+        self.trainer = try? container.decodeIfPresent(String.self, forKey: .trainer)
+        self.status = try? container.decodeIfPresent(String.self, forKey: .status)
+        self.created = try? container.decodeIfPresent(String.self, forKey: .created)
+        self.must_change_password = try? container.decodeIfPresent(Bool.self, forKey: .must_change_password)
+        self.color = try? container.decodeIfPresent(String.self, forKey: .color)
+        self.avatar_initials = try? container.decodeIfPresent(String.self, forKey: .avatar_initials)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(email, forKey: .email)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(full_name, forKey: .full_name)
+        try container.encodeIfPresent(role, forKey: .role)
+        try container.encodeIfPresent(avatar, forKey: .avatar)
+        try container.encodeIfPresent(trainer, forKey: .trainer)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(created, forKey: .created)
+        try container.encodeIfPresent(must_change_password, forKey: .must_change_password)
+        try container.encodeIfPresent(color, forKey: .color)
+        try container.encodeIfPresent(avatar_initials, forKey: .avatar_initials)
+    }
+    
+    public init(id: String, email: String, name: String? = nil, full_name: String? = nil, role: String? = "client", avatar: String? = nil, trainer: String? = nil, status: String? = "activo", created: String? = nil, must_change_password: Bool? = nil, color: String? = nil, avatar_initials: String? = nil) {
         self.id = id
         self.email = email
         self.name = name
@@ -62,6 +104,8 @@ public struct GymUser: Identifiable, Codable, Sendable, Hashable {
         self.status = status
         self.created = created
         self.must_change_password = must_change_password
+        self.color = color
+        self.avatar_initials = avatar_initials
     }
 }
 
