@@ -22,22 +22,45 @@ public struct Achievement: Identifiable, Codable, Sendable {
     }
 }
 
-/// Gestor de logros, insignias unlocked y cálculo de racha diaria de pasos (100% local).
+/// Gestor de logros, insignias unlocked y cálculo de racha diaria de pasos con Días Congelados (100% local).
 @MainActor
 public final class AchievementsManager: ObservableObject {
     @Published public var currentStreakDays: Int = 0
     @Published public var bestStreakDays: Int = 0
+    @Published public var streakFreezesAvailable: Int = 1
     @Published public var achievements: [Achievement] = []
     
     private let achievementsStorageKey = "aurasteps_unlocked_achievements"
     private let currentStreakStorageKey = "aurasteps_current_streak_days"
     private let bestStreakStorageKey = "aurasteps_best_streak_days"
+    private let streakFreezesStorageKey = "aurasteps_streak_freezes_available"
+    private let lastFreezeWeekStorageKey = "aurasteps_last_freeze_week_year"
+    private let lastEvaluatedDateStorageKey = "aurasteps_last_evaluated_date"
+    private let frozenDatesStorageKey = "aurasteps_frozen_dates"
+    
+    private var lastStreakFreezeWeekYear: String = ""
+    private var lastEvaluatedDateString: String = ""
+    private var frozenDateStrings: Set<String> = []
     
     public init() {
         self.currentStreakDays = UserDefaults.standard.integer(forKey: currentStreakStorageKey)
         self.bestStreakDays = UserDefaults.standard.integer(forKey: bestStreakStorageKey)
+        
+        if UserDefaults.standard.object(forKey: streakFreezesStorageKey) != nil {
+            self.streakFreezesAvailable = UserDefaults.standard.integer(forKey: streakFreezesStorageKey)
+        } else {
+            self.streakFreezesAvailable = 1
+        }
+        
+        self.lastStreakFreezeWeekYear = UserDefaults.standard.string(forKey: lastFreezeWeekStorageKey) ?? ""
+        self.lastEvaluatedDateString = UserDefaults.standard.string(forKey: lastEvaluatedDateStorageKey) ?? ""
+        if let savedFrozen = UserDefaults.standard.stringArray(forKey: frozenDatesStorageKey) {
+            self.frozenDateStrings = Set(savedFrozen)
+        }
+        
         setupDefaultAchievements()
         loadUnlockedAchievements()
+        checkWeeklyStreakFreezeReset()
     }
     
     private func setupDefaultAchievements() {
@@ -72,6 +95,32 @@ public final class AchievementsManager: ObservableObject {
         if let data = try? JSONEncoder().encode(unlockedDict) {
             UserDefaults.standard.set(data, forKey: achievementsStorageKey)
         }
+    }
+    
+    public func checkWeeklyStreakFreezeReset() {
+        let calendar = Calendar.current
+        let now = Date()
+        let year = calendar.component(.yearForWeekOfYear, from: now)
+        let week = calendar.component(.weekOfYear, from: now)
+        let currentWeekKey = "\(year)-\(week)"
+        
+        if lastStreakFreezeWeekYear.isEmpty {
+            lastStreakFreezeWeekYear = currentWeekKey
+            streakFreezesAvailable = 1
+            saveStreakFreezeData()
+        } else if lastStreakFreezeWeekYear != currentWeekKey {
+            // Nueva semana: recargar 1 día congelado semanal (máximo 1 disponible)
+            lastStreakFreezeWeekYear = currentWeekKey
+            streakFreezesAvailable = 1
+            saveStreakFreezeData()
+        }
+    }
+    
+    private func saveStreakFreezeData() {
+        UserDefaults.standard.set(streakFreezesAvailable, forKey: streakFreezesStorageKey)
+        UserDefaults.standard.set(lastStreakFreezeWeekYear, forKey: lastFreezeWeekStorageKey)
+        UserDefaults.standard.set(lastEvaluatedDateString, forKey: lastEvaluatedDateStorageKey)
+        UserDefaults.standard.set(Array(frozenDateStrings), forKey: frozenDatesStorageKey)
     }
     
     /// Evalúa el progreso actual del usuario y desbloquea insignias de forma automática.
@@ -130,15 +179,73 @@ public final class AchievementsManager: ObservableObject {
         return nil
     }
     
-    public func updateStreak(weeklySummary: [DailySummary], goal: Int) {
-        // Calcular racha actual analizando días consecutivos anteriores donde se cumplió la meta
+    /// Evalúa el cambio de día y gestiona automáticamente los Días Congelados y avisos si no se cumplió la meta del día anterior.
+    public func updateStreak(weeklySummary: [DailySummary], goal: Int, notificationManager: NotificationManager? = nil) {
+        checkWeeklyStreakFreezeReset()
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
+            updateStreakWithFreezes(weeklySummary: weeklySummary, goal: goal)
+            return
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let yesterdayStr = formatter.string(from: yesterday)
+        let todayStr = formatter.string(from: today)
+        
+        // Comprobar si el día de ayer necesita ser procesado por primera vez
+        if lastEvaluatedDateString != yesterdayStr && lastEvaluatedDateString != todayStr {
+            if let yesterdaySummary = weeklySummary.first(where: { $0.dateString == yesterdayStr }) {
+                if yesterdaySummary.steps >= goal {
+                    // Meta cumplida ayer sin problemas
+                    lastEvaluatedDateString = yesterdayStr
+                    saveStreakFreezeData()
+                } else {
+                    // Ayer NO se cumplieron los pasos
+                    if streakFreezesAvailable > 0 {
+                        // Consumir Día Congelado semanal y notificar
+                        streakFreezesAvailable -= 1
+                        frozenDateStrings.insert(yesterdayStr)
+                        lastEvaluatedDateString = yesterdayStr
+                        saveStreakFreezeData()
+                        
+                        notificationManager?.sendAchievementNotification(
+                            title: "🛡️ ¡Día Congelado Utilizado!",
+                            body: "Ayer no alcanzaste tu objetivo de pasos, pero tu racha de \(currentStreakDays) días sigue intacta gracias a tu Día Congelado semanal. Te quedan 0 congelados esta semana."
+                        )
+                    } else {
+                        // Sin Días Congelados: reinicio de racha y notificación
+                        lastEvaluatedDateString = yesterdayStr
+                        saveStreakFreezeData()
+                        
+                        notificationManager?.sendAchievementNotification(
+                            title: "💔 Racha Interrumpida",
+                            body: "Ayer no alcanzaste tu meta diaria y no tenías Días Congelados disponibles. ¡Tu racha se ha reiniciado! Hoy es un buen día para volver a empezar."
+                        )
+                    }
+                }
+            }
+        }
+        
+        updateStreakWithFreezes(weeklySummary: weeklySummary, goal: goal)
+    }
+    
+    private func updateStreakWithFreezes(weeklySummary: [DailySummary], goal: Int) {
         var streak = 0
         let reversedDays = weeklySummary.reversed()
+        let calendar = Calendar.current
         
         for day in reversedDays {
-            if day.steps >= goal {
+            if day.steps >= goal || frozenDateStrings.contains(day.dateString) {
                 streak += 1
             } else {
+                // Si es el día actual y aún está transcurriendo, no rompe la racha de días anteriores
+                if calendar.isDateInToday(day.date) {
+                    continue
+                }
                 break
             }
         }
@@ -154,9 +261,19 @@ public final class AchievementsManager: ObservableObject {
     public func resetAchievements() {
         currentStreakDays = 0
         bestStreakDays = 0
+        streakFreezesAvailable = 1
+        lastStreakFreezeWeekYear = ""
+        lastEvaluatedDateString = ""
+        frozenDateStrings.removeAll()
+        
         UserDefaults.standard.removeObject(forKey: currentStreakStorageKey)
         UserDefaults.standard.removeObject(forKey: bestStreakStorageKey)
         UserDefaults.standard.removeObject(forKey: achievementsStorageKey)
+        UserDefaults.standard.removeObject(forKey: streakFreezesStorageKey)
+        UserDefaults.standard.removeObject(forKey: lastFreezeWeekStorageKey)
+        UserDefaults.standard.removeObject(forKey: lastEvaluatedDateStorageKey)
+        UserDefaults.standard.removeObject(forKey: frozenDatesStorageKey)
+        
         setupDefaultAchievements()
     }
 }

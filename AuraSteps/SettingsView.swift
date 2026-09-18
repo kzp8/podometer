@@ -310,7 +310,7 @@ struct SettingsView: View {
                     .font(.headline)
                     .foregroundColor(.white)
                 Spacer()
-                Text("\(achievementsManager.currentStreakDays)d Racha 🔥")
+                Text("\(achievementsManager.currentStreakDays)d Racha 🔥 • 🛡️ \(achievementsManager.streakFreezesAvailable)/1")
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundColor(themeManager.accentColor)

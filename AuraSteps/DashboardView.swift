@@ -53,7 +53,7 @@ struct DashboardView: View {
                 motionManager.startLiveTracking()
                 Task { @MainActor in
                     await motionManager.fetchHistoryForSelectedDate()
-                    achievementsManager.updateStreak(weeklySummary: motionManager.weeklySummary, goal: motionManager.todayGoal)
+                    achievementsManager.updateStreak(weeklySummary: motionManager.weeklySummary, goal: motionManager.todayGoal, notificationManager: notificationManager)
                     achievementsManager.evaluateProgress(
                         steps: motionManager.todaySteps,
                         goal: motionManager.todayGoal,
@@ -73,6 +73,7 @@ struct DashboardView: View {
                     totalDistanceKm: motionManager.todayDistanceKm,
                     notificationManager: notificationManager
                 )
+                notificationManager.scheduleNotificationsIfNeeded(currentSteps: newSteps, goalSteps: motionManager.todayGoal)
             }
             .onChange(of: motionManager.selectedHistoryDate) { _ in
                 Task { @MainActor in
@@ -87,8 +88,10 @@ struct DashboardView: View {
             .onChange(of: scenePhase) { newPhase in
                 if newPhase == .active {
                     motionManager.startLiveTracking()
+                    achievementsManager.updateStreak(weeklySummary: motionManager.weeklySummary, goal: motionManager.todayGoal, notificationManager: notificationManager)
                 } else if newPhase == .background || newPhase == .inactive {
                     motionManager.stopLiveTracking()
+                    notificationManager.scheduleNotificationsIfNeeded(currentSteps: motionManager.todaySteps, goalSteps: motionManager.todayGoal)
                 }
             }
         }

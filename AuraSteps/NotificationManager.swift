@@ -69,10 +69,18 @@ public final class NotificationManager: ObservableObject {
         }
     }
     
-    public func scheduleNotificationsIfNeeded() {
+    private var lastKnownSteps: Int = 0
+    private var lastKnownGoal: Int = 10000
+    
+    public func scheduleNotificationsIfNeeded(currentSteps: Int? = nil, goalSteps: Int? = nil) {
+        if let steps = currentSteps { self.lastKnownSteps = steps }
+        if let goal = goalSteps { self.lastKnownGoal = goal }
+        
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         
         guard isAuthorized else { return }
+        
+        let stepsText = "\(lastKnownSteps) de \(lastKnownGoal)"
         
         if isDailyReminderEnabled {
             let calendar = Calendar.current
@@ -80,7 +88,11 @@ public final class NotificationManager: ObservableObject {
             
             let content = UNMutableNotificationContent()
             content.title = "👟 Resumen de Pasos AuraSteps"
-            content.body = "¡Comprueba tu progreso de hoy! Estás a punto de completar tu objetivo diario."
+            if lastKnownSteps >= lastKnownGoal {
+                content.body = "¡Enhorabuena! Has alcanzado tu objetivo con \(stepsText) pasos hoy 🎉"
+            } else {
+                content.body = "Llevas \(stepsText) pasos hoy. ¡Sigue así para alcanzar tu meta!"
+            }
             content.sound = .default
             
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
@@ -92,14 +104,24 @@ public final class NotificationManager: ObservableObject {
         if isInactivityReminderEnabled {
             let content = UNMutableNotificationContent()
             content.title = "🚶‍♂️ ¡Hora de Moverse!"
-            content.body = "Llevas un tiempo sin registrar actividad. ¡Da un paseo de 5 minutos para mantener tu racha activa!"
+            content.body = "Llevas \(stepsText) pasos hoy. ¡Da un paseo de 5 minutos para seguir sumando!"
             content.sound = .default
             
-            // Recordatorio de inactividad programado cada 2 horas
-            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 7200, repeats: true)
-            let request = UNNotificationRequest(identifier: "aurasteps_inactivity_reminder", content: content, trigger: trigger)
-            
-            UNUserNotificationCenter.current().add(request)
+            // Recordatorios de inactividad programados exclusivamente en horario diurno (de 10:00 a 22:00 cada 2 horas)
+            let activeHours = [10, 12, 14, 16, 18, 20, 22]
+            for hour in activeHours {
+                var components = DateComponents()
+                components.hour = hour
+                components.minute = 0
+                
+                let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+                let request = UNNotificationRequest(
+                    identifier: "aurasteps_inactivity_reminder_\(hour)",
+                    content: content,
+                    trigger: trigger
+                )
+                UNUserNotificationCenter.current().add(request)
+            }
         }
     }
     
