@@ -18,25 +18,51 @@ struct AuraStepsApp: App {
     var body: some Scene {
         WindowGroup {
             TabView(selection: $selectedTab) {
-                DashboardView()
+                if pocketBaseManager.isLoggedIn {
+                    GymDashboardView(onNavigateToRoutine: {
+                        selectedTab = 2 // Mi Rutina
+                    })
                     .tabItem {
-                        Label("Pasos", systemImage: "figure.walk")
+                        Label("Inicio", systemImage: "house.fill")
                     }
                     .tag(0)
-                
-                if pocketBaseManager.isLoggedIn {
-                    GymClientMainView()
+                    
+                    DashboardView()
                         .tabItem {
-                            Label("Gimnasio", systemImage: "dumbbell.fill")
+                            Label("Pasos", systemImage: "figure.walk")
+                        }
+                        .tag(1)
+                    
+                    GymRoutineView()
+                        .tabItem {
+                            Label("Mi Rutina", systemImage: "dumbbell.fill")
+                        }
+                        .tag(2)
+                    
+                    GymGalleryView()
+                        .tabItem {
+                            Label("Galería", systemImage: "photo.stack.fill")
+                        }
+                        .tag(3)
+                    
+                    SettingsView()
+                        .tabItem {
+                            Label("Ajustes", systemImage: "gearshape.fill")
+                        }
+                        .tag(4)
+                } else {
+                    DashboardView()
+                        .tabItem {
+                            Label("Pasos", systemImage: "figure.walk")
+                        }
+                        .tag(0)
+                    
+                    SettingsView()
+                        .tabItem {
+                            Label("Ajustes", systemImage: "gearshape.fill")
                         }
                         .tag(1)
                 }
-                
-                SettingsView()
-                    .tabItem {
-                        Label("Ajustes", systemImage: "gearshape.fill")
-                    }
-                    .tag(pocketBaseManager.isLoggedIn ? 2 : 1)
             }
             .tint(themeManager.accentColor)
             .preferredColorScheme(.dark)

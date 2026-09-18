@@ -11,7 +11,7 @@ struct GymDashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.04, green: 0.04, blue: 0.05).ignoresSafeArea()
+                themeManager.backgroundColor.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -43,7 +43,7 @@ struct GymDashboardView: View {
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
                                 .padding(6)
-                                .background(Color.purple)
+                                .background(themeManager.accentColor)
                                 .clipShape(Circle())
                             
                             Text(user.displayName)
@@ -73,7 +73,7 @@ struct GymDashboardView: View {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(LinearGradient(colors: [Color.purple, Color.indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .fill(LinearGradient(colors: [themeManager.accentColor, themeManager.accentColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 56, height: 56)
                     Text(user.initials)
                         .font(.title3)
@@ -84,7 +84,7 @@ struct GymDashboardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("¡Bienvenido de vuelta!")
                         .font(.caption)
-                        .foregroundColor(.purple.opacity(0.8))
+                        .foregroundColor(themeManager.accentColor.opacity(0.8))
                     
                     HStack(spacing: 4) {
                         Text("Hola, \(user.displayName)")
@@ -104,11 +104,11 @@ struct GymDashboardView: View {
                 Spacer()
             }
             .padding(18)
-            .background(Color(red: 0.09, green: 0.07, blue: 0.12))
+            .background(themeManager.cardColor)
             .cornerRadius(20)
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                    .stroke(themeManager.accentColor.opacity(0.2), lineWidth: 1)
             )
         }
     }
@@ -118,7 +118,7 @@ struct GymDashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: "dumbbell.fill")
-                    .foregroundColor(.purple)
+                    .foregroundColor(themeManager.accentColor)
                     .font(.subheadline)
                 Text("Tu rutina actual")
                     .font(.headline)
@@ -157,10 +157,10 @@ struct GymDashboardView: View {
                                 if pbManager.routineDays.count > 3 {
                                     Text("+\(pbManager.routineDays.count - 3) más")
                                         .font(.caption2)
-                                        .foregroundColor(.purple)
+                                        .foregroundColor(themeManager.accentColor)
                                         .padding(.vertical, 6)
                                         .padding(.horizontal, 10)
-                                        .background(Color.purple.opacity(0.15))
+                                        .background(Color.white.opacity(0.12))
                                         .cornerRadius(10)
                                 }
                             }
@@ -169,7 +169,7 @@ struct GymDashboardView: View {
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 0.12, green: 0.10, blue: 0.16))
+                .background(Color(red: 0.1, green: 0.1, blue: 0.12))
                 .cornerRadius(16)
                 
                 // Botón Ver Rutina Completa
@@ -206,7 +206,7 @@ struct GymDashboardView: View {
             }
         }
         .padding(18)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+        .background(themeManager.cardColor)
         .cornerRadius(22)
         .overlay(
             RoundedRectangle(cornerRadius: 22)
@@ -219,7 +219,7 @@ struct GymDashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: "clock.fill")
-                    .foregroundColor(.purple)
+                    .foregroundColor(themeManager.accentColor)
                     .font(.subheadline)
                 Text("Mis últimas subidas")
                     .font(.headline)
@@ -242,7 +242,7 @@ struct GymDashboardView: View {
                     ForEach(pbManager.progressUploads.prefix(3)) { item in
                         HStack(spacing: 12) {
                             Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
-                                .foregroundColor(.purple)
+                                .foregroundColor(themeManager.accentColor)
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.notes?.isEmpty == false ? item.notes! : (item.isVideo ? "Vídeo de Progreso" : "Foto de Progreso"))
@@ -253,7 +253,7 @@ struct GymDashboardView: View {
                                 if let resp = item.admin_response, !resp.isEmpty {
                                     Text("Entrenador: \"\(resp)\"")
                                         .font(.caption2)
-                                        .foregroundColor(.purple)
+                                        .foregroundColor(themeManager.accentColor)
                                         .lineLimit(1)
                                 } else {
                                     Text(item.seen_by_admin == true ? "Visto 👁️" : "Pendiente ⏳")

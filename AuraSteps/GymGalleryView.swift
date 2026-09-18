@@ -22,7 +22,7 @@ struct GymGalleryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.04, green: 0.04, blue: 0.05).ignoresSafeArea()
+                themeManager.backgroundColor.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -54,11 +54,11 @@ struct GymGalleryView: View {
                                         .foregroundColor(isSelected ? .black : .gray)
                                         .padding(.vertical, 10)
                                         .padding(.horizontal, 24)
-                                        .background(isSelected ? Color.purple : Color(red: 0.12, green: 0.12, blue: 0.14))
+                                        .background(isSelected ? themeManager.accentColor : Color(red: 0.12, green: 0.12, blue: 0.14))
                                         .cornerRadius(14)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 14)
-                                                .stroke(isSelected ? Color.purple : Color.white.opacity(0.08), lineWidth: 1)
+                                                .stroke(isSelected ? themeManager.accentColor : Color.white.opacity(0.08), lineWidth: 1)
                                         )
                                 }
                             }
@@ -87,7 +87,7 @@ struct GymGalleryView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 48)
-                            .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                            .background(themeManager.cardColor)
                             .cornerRadius(22)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 22)
@@ -99,7 +99,7 @@ struct GymGalleryView: View {
                                     VStack(alignment: .leading, spacing: 12) {
                                         HStack {
                                             Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
-                                                .foregroundColor(.purple)
+                                                .foregroundColor(themeManager.accentColor)
                                             Text(item.isVideo ? "Vídeo de Progreso" : "Foto de Progreso")
                                                 .font(.subheadline)
                                                 .fontWeight(.bold)
@@ -113,7 +113,7 @@ struct GymGalleryView: View {
                                                     .foregroundColor(.black)
                                                     .padding(.vertical, 4)
                                                     .padding(.horizontal, 8)
-                                                    .background(Color.purple)
+                                                    .background(themeManager.accentColor)
                                                     .cornerRadius(8)
                                             } else {
                                                 Text(item.seen_by_admin == true ? "Visto 👁️" : "Pendiente ⏳")
@@ -146,19 +146,19 @@ struct GymGalleryView: View {
                                                 Text("Feedback del Entrenador:")
                                                     .font(.caption2)
                                                     .fontWeight(.bold)
-                                                    .foregroundColor(.purple)
+                                                    .foregroundColor(themeManager.accentColor)
                                                 Text(adminResp)
                                                     .font(.subheadline)
                                                     .foregroundColor(.white)
                                             }
                                             .padding(12)
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                            .background(Color.purple.opacity(0.12))
+                                            .background(themeManager.accentColor.opacity(0.12))
                                             .cornerRadius(12)
                                         }
                                     }
                                     .padding(16)
-                                    .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                    .background(themeManager.cardColor)
                                     .cornerRadius(20)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 20)
@@ -180,7 +180,7 @@ struct GymGalleryView: View {
                         showUploadSheet = true
                     }) {
                         Image(systemName: "plus")
-                            .foregroundColor(.purple)
+                            .foregroundColor(themeManager.accentColor)
                     }
                 }
             }
@@ -220,7 +220,7 @@ struct GymImageView: View {
                         .fill(Color.white.opacity(0.05))
                         .frame(height: 180)
                     ProgressView()
-                        .tint(.purple)
+                        .tint(themeManager.accentColor)
                 }
             } else {
                 ZStack {

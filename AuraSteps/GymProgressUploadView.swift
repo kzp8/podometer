@@ -21,7 +21,7 @@ struct GymProgressUploadView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.04, green: 0.04, blue: 0.05).ignoresSafeArea()
+                themeManager.backgroundColor.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -47,7 +47,7 @@ struct GymProgressUploadView: View {
                                             .frame(width: 56, height: 56)
                                         Image(systemName: "video.fill")
                                             .font(.title2)
-                                            .foregroundColor(.purple)
+                                            .foregroundColor(themeManager.accentColor)
                                     }
                                     
                                     Text("Vídeo")
@@ -61,11 +61,11 @@ struct GymProgressUploadView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 24)
-                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .background(themeManager.cardColor)
                                 .cornerRadius(20)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20)
-                                        .stroke(selectedData != nil && isVideo ? Color.purple : Color.white.opacity(0.08), lineWidth: selectedData != nil && isVideo ? 2 : 1)
+                                        .stroke(selectedData != nil && isVideo ? themeManager.accentColor : Color.white.opacity(0.08), lineWidth: selectedData != nil && isVideo ? 2 : 1)
                                 )
                             }
                             
@@ -78,7 +78,7 @@ struct GymProgressUploadView: View {
                                             .frame(width: 56, height: 56)
                                         Image(systemName: "camera.fill")
                                             .font(.title2)
-                                            .foregroundColor(.purple)
+                                            .foregroundColor(themeManager.accentColor)
                                     }
                                     
                                     Text("Foto")
@@ -92,11 +92,11 @@ struct GymProgressUploadView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 24)
-                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .background(themeManager.cardColor)
                                 .cornerRadius(20)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20)
-                                        .stroke(selectedData != nil && !isVideo ? Color.purple : Color.white.opacity(0.08), lineWidth: selectedData != nil && !isVideo ? 2 : 1)
+                                        .stroke(selectedData != nil && !isVideo ? themeManager.accentColor : Color.white.opacity(0.08), lineWidth: selectedData != nil && !isVideo ? 2 : 1)
                                 )
                             }
                         }
@@ -105,7 +105,7 @@ struct GymProgressUploadView: View {
                         if let data = selectedData {
                             HStack(spacing: 10) {
                                 Image(systemName: isVideo ? "video.circle.fill" : "photo.circle.fill")
-                                    .foregroundColor(.purple)
+                                    .foregroundColor(themeManager.accentColor)
                                 Text("Archivo seleccionado: \(fileName)")
                                     .font(.caption)
                                     .foregroundColor(.white)
@@ -119,7 +119,7 @@ struct GymProgressUploadView: View {
                                 .foregroundColor(.red)
                             }
                             .padding(12)
-                            .background(Color.purple.opacity(0.12))
+                            .background(themeManager.accentColor.opacity(0.12))
                             .cornerRadius(12)
                         }
                         
@@ -133,7 +133,7 @@ struct GymProgressUploadView: View {
                             TextField("Ej: He mejorado mucho en la profundidad de la sentadilla. ¿Está bien el ángulo de la rodilla?", text: $notesText, axis: .vertical)
                                 .lineLimit(4...7)
                                 .padding(14)
-                                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                                .background(themeManager.cardColor)
                                 .cornerRadius(16)
                                 .foregroundColor(.white)
                                 .overlay(
@@ -172,7 +172,7 @@ struct GymProgressUploadView: View {
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(selectedData != nil || !notesText.isEmpty ? Color.purple : Color.white.opacity(0.08))
+                                .background(selectedData != nil || !notesText.isEmpty ? themeManager.accentColor : Color.white.opacity(0.08))
                                 .cornerRadius(16)
                             }
                             .disabled(isUploading || (selectedData == nil && notesText.isEmpty))

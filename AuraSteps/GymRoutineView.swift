@@ -14,7 +14,7 @@ struct GymRoutineView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.04, green: 0.04, blue: 0.05).ignoresSafeArea()
+                themeManager.backgroundColor.ignoresSafeArea()
                 
                 if pbManager.routineDays.isEmpty {
                     emptyStateView
@@ -56,11 +56,11 @@ struct GymRoutineView: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.purple.opacity(0.2))
+                    .fill(themeManager.accentColor.opacity(0.2))
                     .frame(width: 80, height: 80)
                 Image(systemName: "dumbbell.fill")
                     .font(.system(size: 36))
-                    .foregroundColor(.purple)
+                    .foregroundColor(themeManager.accentColor)
             }
             Text("Sin rutina asignada")
                 .font(.title3)
@@ -80,7 +80,7 @@ struct GymRoutineView: View {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(LinearGradient(colors: [Color.purple, Color.indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .fill(LinearGradient(colors: [themeManager.accentColor, themeManager.accentColor.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 48, height: 48)
                     Image(systemName: "dumbbell.fill")
                         .font(.title3)
@@ -112,11 +112,11 @@ struct GymRoutineView: View {
             .foregroundColor(.gray)
         }
         .padding(18)
-        .background(Color(red: 0.09, green: 0.07, blue: 0.12))
+        .background(themeManager.cardColor)
         .cornerRadius(20)
         .overlay(
             RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                .stroke(themeManager.accentColor.opacity(0.2), lineWidth: 1)
         )
     }
     
@@ -156,11 +156,11 @@ struct GymRoutineView: View {
             .foregroundColor(isSelected ? .black : .gray)
             .padding(.vertical, 10)
             .padding(.horizontal, 18)
-            .background(isSelected ? Color.purple : Color(red: 0.12, green: 0.12, blue: 0.14))
+            .background(isSelected ? themeManager.accentColor : Color(red: 0.12, green: 0.12, blue: 0.14))
             .cornerRadius(14)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(isSelected ? Color.purple : Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(isSelected ? themeManager.accentColor : Color.white.opacity(0.08), lineWidth: 1)
             )
         }
     }
@@ -176,7 +176,7 @@ struct GymRoutineView: View {
                 Text(currentDay.title.uppercased())
                     .font(.caption)
                     .fontWeight(.heavy)
-                    .foregroundColor(.purple)
+                    .foregroundColor(themeManager.accentColor)
                     .tracking(1.5)
                 
                 Spacer()
@@ -269,7 +269,7 @@ struct GymRoutineView: View {
             }
         }
         .padding(18)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+        .background(themeManager.cardColor)
         .cornerRadius(22)
         .overlay(
             RoundedRectangle(cornerRadius: 22)
@@ -280,7 +280,7 @@ struct GymRoutineView: View {
     @ViewBuilder
     private var logModalView: some View {
         ZStack {
-            Color(red: 0.08, green: 0.08, blue: 0.10).ignoresSafeArea()
+            themeManager.cardColor.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 16) {
                 Text("Registrar cargas")
                     .font(.headline)
@@ -299,7 +299,7 @@ struct GymRoutineView: View {
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.purple)
+                .background(themeManager.accentColor)
                 .cornerRadius(14)
             }
             .padding()
