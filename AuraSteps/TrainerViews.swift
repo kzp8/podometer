@@ -2575,39 +2575,37 @@ struct TrainerUploadDetailView: View {
                     // Visor de foto o vídeo (al pulsar se abre el visor modal en pantalla completa)
                     if let fileName = upload.file,
                        let url = pbManager.getFileURL(recordId: upload.id, fileName: fileName) {
-                        Button(action: {
+                        ZStack(alignment: .bottomTrailing) {
+                            if upload.isVideo {
+                                GymVideoThumbnailView(url: url, authToken: pbManager.authToken, showPlayButton: true)
+                                    .frame(height: 320)
+                                    .cornerRadius(16)
+                                    .clipped()
+                            } else {
+                                GymImageView(url: url, authToken: pbManager.authToken)
+                                    .frame(maxHeight: 320)
+                                    .cornerRadius(16)
+                                    .clipped()
+                            }
+                            
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                Text("Ver en grande")
+                            }
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.7))
+                            .cornerRadius(8)
+                            .padding(10)
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 16))
+                        .onTapGesture {
                             let generator = UIImpactFeedbackGenerator(style: .medium)
                             generator.impactOccurred()
                             isPresentingMediaViewer = true
-                        }) {
-                            ZStack(alignment: .bottomTrailing) {
-                                if upload.isVideo {
-                                    GymVideoThumbnailView(url: url, authToken: pbManager.authToken, showPlayButton: true)
-                                        .frame(height: 320)
-                                        .cornerRadius(16)
-                                        .clipped()
-                                } else {
-                                    GymImageView(url: url, authToken: pbManager.authToken)
-                                        .frame(maxHeight: 320)
-                                        .cornerRadius(16)
-                                        .clipped()
-                                }
-                                
-                                HStack(spacing: 5) {
-                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                    Text("Ver en grande")
-                                }
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.black.opacity(0.7))
-                                .cornerRadius(8)
-                                .padding(10)
-                            }
                         }
-                        .buttonStyle(.borderless)
-                        .contentShape(RoundedRectangle(cornerRadius: 16))
                     }
                     
                     // Datos del cliente
@@ -2722,6 +2720,7 @@ struct TrainerUploadDetailView: View {
                     }
                     .foregroundColor(isSeen ? Color(hex: "34D399") : themeManager.accentColor)
                 }
+                .buttonStyle(.plain)
                 .disabled(isMarkingSeen)
             }
         }
@@ -2737,14 +2736,20 @@ struct TrainerUploadDetailView: View {
     }
     
     private func toggleReviewed() {
+        guard !isMarkingSeen else { return }
         isMarkingSeen = true
         let newValue = !isSeen
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isSeen = newValue
+        }
         Task {
             let ok = await pbManager.markUploadAsSeen(uploadId: upload.id, seen: newValue)
             await MainActor.run {
                 isMarkingSeen = false
-                if ok {
-                    isSeen = newValue
+                if !ok {
+                    withAnimation {
+                        isSeen = !newValue
+                    }
                 }
             }
         }
