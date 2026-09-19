@@ -215,7 +215,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     @ViewBuilder
@@ -333,7 +332,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     @ViewBuilder
@@ -407,7 +405,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     
@@ -522,7 +519,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     @ViewBuilder
@@ -572,7 +568,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     @ViewBuilder
@@ -693,7 +688,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     @ViewBuilder
@@ -790,7 +784,6 @@ struct SettingsView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     private func maskedToken(_ token: String) -> String {

@@ -221,7 +221,6 @@ struct DashboardView: View {
             }
             .padding(20)
         }
-        .padding(.horizontal)
     }
     
     private var streakBannerView: some View {
@@ -263,7 +262,6 @@ struct DashboardView: View {
         .padding(.vertical, 14)
         .background(themeManager.cardColor)
         .cornerRadius(18)
-        .padding(.horizontal)
     }
     
     private var metricsGridView: some View {
@@ -320,7 +318,6 @@ struct DashboardView: View {
                 showActiveTimeInfo = true
             }
         }
-        .padding(.horizontal)
     }
     
     // MARK: - Sección de Historial Interactivo (Calendario + Hora por Hora)
@@ -379,7 +376,6 @@ struct DashboardView: View {
         .padding(20)
         .background(themeManager.cardColor)
         .cornerRadius(24)
-        .padding(.horizontal)
     }
     
     // MARK: - Vista Desglose Hora por Hora (Día)
