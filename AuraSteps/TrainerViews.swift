@@ -2467,6 +2467,7 @@ struct TrainerGalleryView: View {
                         .padding(6)
                         .background(Color.white.opacity(0.03))
                         .cornerRadius(14)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -2475,6 +2476,7 @@ struct TrainerGalleryView: View {
         .padding(14)
         .background(Color.white.opacity(0.04))
         .cornerRadius(18)
+        .contentShape(Rectangle())
     }
 }
 
@@ -2678,6 +2680,8 @@ struct TrainerUploadDetailView: View {
     @State private var isPresentingMediaViewer: Bool = false
     @State private var isSeen: Bool = false
     @State private var isMarkingSeen: Bool = false
+    @State private var showDeleteAlert: Bool = false
+    @State private var isDeleting: Bool = false
     
     var body: some View {
         ZStack {
@@ -2749,34 +2753,36 @@ struct TrainerUploadDetailView: View {
                         ZStack {
                             Circle()
                                 .fill(themeManager.accentColor)
-                                .frame(width: 48, height: 48)
-                            Text(upload.clientInitials)
-                                .font(.system(size: 16, weight: .heavy))
+                                .frame(width: 44, height: 44)
+                            Text(upload.clientDisplayName.prefix(2).uppercased())
+                                .font(.system(size: 15, weight: .heavy))
                                 .foregroundColor(.white)
                         }
+                        
                         VStack(alignment: .leading, spacing: 2) {
                             Text(upload.clientDisplayName)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.white)
-                            Text(upload.formattedUploadDate)
+                            Text("Enviado el \(upload.formattedUploadDate)")
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray)
                         }
-                        Spacer()
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.white.opacity(0.04))
                     .cornerRadius(14)
                     
                     // Comentario del cliente
                     if let note = upload.notes, !note.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Comentario del alumno:")
+                            Text("Mensaje del Alumno")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.gray)
                             Text("\"\(note)\"")
                                 .font(.system(size: 15))
                                 .foregroundColor(.white)
+                                .italic()
                         }
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2784,21 +2790,16 @@ struct TrainerUploadDetailView: View {
                         .cornerRadius(14)
                     }
                     
-                    // Feedback del Entrenador
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Tu Feedback / Corrección:")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(themeManager.accentColor)
+                    // Formulario de Feedback / Corrección del entrenador
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Enviar Respuesta / Feedback")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
                         
-                        if let prevResp = upload.admin_response, !prevResp.isEmpty {
-                            Text("Feedback anterior: \(prevResp)")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        TextField("Escribe corrección técnica para el alumno...", text: $feedbackText, axis: .vertical)
-                            .lineLimit(3...5)
-                            .padding(12)
+                        TextEditor(text: $feedbackText)
+                            .scrollContentBackground(.hidden)
+                            .frame(height: 110)
+                            .padding(8)
                             .background(Color.white.opacity(0.06))
                             .cornerRadius(12)
                             .foregroundColor(.white)
@@ -2830,6 +2831,32 @@ struct TrainerUploadDetailView: View {
                     .padding()
                     .background(Color.white.opacity(0.04))
                     .cornerRadius(14)
+
+                    // Zona de Administración: Botón Borrar Entrega
+                    Button(action: {
+                        showDeleteAlert = true
+                    }) {
+                        HStack(spacing: 6) {
+                            if isDeleting {
+                                ProgressView().tint(.red)
+                            } else {
+                                Image(systemName: "trash.fill")
+                                Text("Borrar archivo permanentemente")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .font(.system(size: 13))
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.red.opacity(0.12))
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                        )
+                    }
+                    .disabled(isDeleting)
                 }
                 .padding()
                 .padding(.bottom, 60)
@@ -2860,6 +2887,14 @@ struct TrainerUploadDetailView: View {
                 .disabled(isMarkingSeen)
             }
         }
+        .alert("¿Eliminar archivo?", isPresented: $showDeleteAlert) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar", role: .destructive) {
+                deleteUpload()
+            }
+        } message: {
+            Text("Esta acción eliminará de forma permanente esta foto o vídeo del servidor.")
+        }
         .fullScreenCover(isPresented: $isPresentingMediaViewer) {
             GymMediaViewerModal(item: upload)
         }
@@ -2867,6 +2902,19 @@ struct TrainerUploadDetailView: View {
             isSeen = upload.seen_by_admin == true
             if let existing = upload.admin_response {
                 feedbackText = existing
+            }
+        }
+    }
+    
+    private func deleteUpload() {
+        isDeleting = true
+        Task {
+            let ok = await pbManager.deleteProgressUpload(id: upload.id)
+            await MainActor.run {
+                isDeleting = false
+                if ok {
+                    dismiss()
+                }
             }
         }
     }
