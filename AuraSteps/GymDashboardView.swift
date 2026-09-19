@@ -204,8 +204,12 @@ struct GymDashboardView: View {
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(red: 0.1, green: 0.1, blue: 0.12))
+                .background(Color.white.opacity(0.05))
                 .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
                 
                 // Botón Ver Rutina Completa
                 Button(action: {

@@ -42,6 +42,7 @@ struct SettingsView: View {
                             gymConnectionSection
                             themeSection
                             privacySection
+                            debugSessionSection
                         }
                         .padding(.top, 16)
                         .padding(.bottom, 75)
@@ -356,14 +357,18 @@ struct SettingsView: View {
                         Spacer()
                         
                         if badge.isUnlocked {
-                            Text("DESBLOQUEADO")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.black)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(themeManager.accentColor)
-                                .cornerRadius(8)
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.caption2)
+                                Text("Logrado")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                            }
+                            .foregroundColor(.black)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(themeManager.accentColor)
+                            .cornerRadius(8)
                         } else {
                             Image(systemName: "lock.fill")
                                 .font(.caption)
@@ -668,9 +673,101 @@ struct SettingsView: View {
         .padding(.horizontal)
     }
     
+    @ViewBuilder
+    private var debugSessionSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Image(systemName: "ladybug.fill")
+                    .font(.title3)
+                    .foregroundColor(.orange)
+                Text("Herramientas de Debug (Testing)")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                Text("TEMPORAL")
+                    .font(.caption2)
+                    .fontWeight(.black)
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange)
+                    .cornerRadius(6)
+            }
+            
+            Text("Cambia de sesión al instante entre Entrenador y Cliente para pruebas:")
+                .font(.caption)
+                .foregroundColor(.gray)
+            
+            Divider().background(Color.white.opacity(0.1))
+            
+            HStack(spacing: 12) {
+                // Entrenador: admin@admin.com / admin1234
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    Task { @MainActor in
+                        pbManager.logoutManual()
+                        let ok = await pbManager.login(identity: "admin@admin.com", password: "admin1234")
+                        if ok {
+                            tabScrollManager.selectTab(0)
+                        }
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.badge.shield.checkmark.fill")
+                        Text("admin@admin.com")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(themeManager.accentColor)
+                    .cornerRadius(12)
+                }
+                .disabled(pbManager.isLoading)
+                
+                // Cliente: clientedemo1@demo.com / clientedemo1@demo.com
+                Button(action: {
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    Task { @MainActor in
+                        pbManager.logoutManual()
+                        let ok = await pbManager.login(identity: "clientedemo1@demo.com", password: "clientedemo1@demo.com")
+                        if ok {
+                            tabScrollManager.selectTab(0)
+                        }
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.fill")
+                        Text("clientedemo1")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.12))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    )
+                }
+                .disabled(pbManager.isLoading)
+            }
+        }
+        .padding(20)
+        .background(themeManager.cardColor)
+        .cornerRadius(24)
+        .padding(.horizontal)
+    }
+    
     private func maskedToken(_ token: String) -> String {
         guard token.count > 6 else { return "••••••" }
         let prefix = token.prefix(4)
         return "\(prefix)••••••••"
     }
 }
+

@@ -2213,12 +2213,14 @@ struct TrainerGalleryView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                                     .padding(.top, 20)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 ForEach(clientsWithUploads, id: \.client.id) { item in
                                     clientGalleryGroupCard(client: item.client, uploads: item.uploads)
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal)
                         .padding(.top, 12)
                         .padding(.bottom, 80)
@@ -2406,6 +2408,7 @@ struct TrainerClientGalleryView: View {
                             .font(.subheadline)
                             .foregroundColor(.gray)
                             .padding(.top, 20)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         ForEach(clientUploads) { upload in
                             NavigationLink(value: upload) {
@@ -2415,6 +2418,7 @@ struct TrainerClientGalleryView: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
                 .padding(.bottom, 60)
             }
@@ -2532,45 +2536,28 @@ struct TrainerUploadDetailView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    // Estado de revisión y Botón toggle revisado/pendiente
+                    // Estado de revisión (Insignia limpia sin botón duplicado)
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(isSeen ? "Estado: Revisado" : "Estado: Pendiente")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(isSeen ? Color(hex: "34D399") : .orange)
-                            Text(isSeen ? "Toca el botón para marcar como pendiente" : "Marca para quitar el aviso de pendiente")
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(isSeen ? Color(hex: "34D399") : .orange)
+                                    .frame(width: 8, height: 8)
+                                Text(isSeen ? "Estado: Revisado por ti" : "Estado: Pendiente de revisión")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(isSeen ? Color(hex: "34D399") : .orange)
+                            }
+                            Text(isSeen ? "Usa el botón superior derecho si deseas marcarlo como pendiente." : "Usa el botón superior derecho para marcar la entrega como revisada.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.gray)
                         }
-                        
                         Spacer()
-                        
-                        Button(action: {
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.impactOccurred()
-                            toggleReviewed()
-                        }) {
-                            HStack(spacing: 6) {
-                                if isMarkingSeen {
-                                    ProgressView().tint(isSeen ? .gray : .black)
-                                } else {
-                                    Image(systemName: isSeen ? "arrow.uturn.left" : "checkmark.seal.fill")
-                                    Text(isSeen ? "Quitar" : "Marcar Revisado")
-                                        .font(.system(size: 13, weight: .bold))
-                                }
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .foregroundColor(isSeen ? .white : .black)
-                            .background(isSeen ? Color.white.opacity(0.12) : themeManager.accentColor)
-                            .cornerRadius(12)
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(isMarkingSeen)
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.white.opacity(0.04))
                     .cornerRadius(14)
+
 
                     // Visor de foto o vídeo (al pulsar se abre el visor modal en pantalla completa)
                     if let fileName = upload.file,
@@ -2712,9 +2699,9 @@ struct TrainerUploadDetailView: View {
                         if isMarkingSeen {
                             ProgressView().tint(.white)
                         } else {
-                            Image(systemName: isSeen ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: isSeen ? "arrow.uturn.left.circle.fill" : "checkmark.circle.fill")
                                 .font(.system(size: 14, weight: .bold))
-                            Text(isSeen ? "Revisado" : "Marcar visto")
+                            Text(isSeen ? "Quitar visto" : "Marcar visto")
                                 .font(.system(size: 13, weight: .bold))
                         }
                     }

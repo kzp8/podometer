@@ -253,7 +253,7 @@ struct GymRoutineView: View {
             .foregroundColor(isSelected ? .black : .gray)
             .padding(.vertical, 10)
             .padding(.horizontal, 18)
-            .background(isSelected ? themeManager.accentColor : Color(red: 0.12, green: 0.12, blue: 0.14))
+            .background(isSelected ? themeManager.accentColor : Color.white.opacity(0.08))
             .cornerRadius(14)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
