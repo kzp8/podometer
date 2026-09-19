@@ -1089,7 +1089,6 @@ public final class PocketBaseManager: ObservableObject {
                 }
                 return (false, msg)
             }
-            }
         } catch {
             return (false, "Error de red: \(error.localizedDescription)")
         }

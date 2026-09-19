@@ -15,6 +15,8 @@ struct DashboardView: View {
     @State private var showActiveTimeInfo: Bool = false
     @State private var isGlowPulsing: Bool = false
     @State private var isIconBouncing: Bool = false
+    @State private var pressedCardIndex: Int? = nil
+    
     var body: some View {
         NavigationStack {
             ZStack {

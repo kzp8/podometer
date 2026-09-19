@@ -22,6 +22,8 @@ struct SettingsView: View {
     @State private var isQRButtonPressed = false
     @State private var isPingButtonPressed = false
     @State private var pbEmailInput: String = ""
+    @State private var pbPasswordInput: String = ""
+    
     var body: some View {
         NavigationStack {
             ZStack {
