@@ -113,7 +113,7 @@ public final class ThemeManager: ObservableObject {
     
     public var accentColor: Color { accentPreset.color }
     public var backgroundColor: Color { backgroundPreset.backgroundColor }
-    public var cardColor: Color { backgroundPreset.cardColor }
+    public var cardColor: Color { Color.white.opacity(0.04) }
     
     public func resetToDefaults() {
         self.accentPreset = .neonLime
