@@ -715,16 +715,21 @@ struct SettingsView: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "person.badge.shield.checkmark.fill")
-                        Text("admin@admin.com")
+                        Text(verbatim: "admin@admin.com")
                             .font(.caption)
                             .fontWeight(.bold)
                     }
-                    .foregroundColor(.black)
+                    .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(themeManager.accentColor)
+                    .background(Color.white.opacity(0.12))
                     .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    )
                 }
+                .buttonStyle(.plain)
                 .disabled(pbManager.isLoading)
                 
                 // Cliente: clientedemo1@demo.com / clientedemo1@demo.com
@@ -741,7 +746,7 @@ struct SettingsView: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "person.fill")
-                        Text("clientedemo1")
+                        Text(verbatim: "clientedemo1")
                             .font(.caption)
                             .fontWeight(.bold)
                     }
@@ -755,6 +760,7 @@ struct SettingsView: View {
                             .stroke(Color.white.opacity(0.15), lineWidth: 1)
                     )
                 }
+                .buttonStyle(.plain)
                 .disabled(pbManager.isLoading)
             }
         }
