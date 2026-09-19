@@ -30,7 +30,7 @@ struct SettingsView: View {
                 AppBackgroundView()
                 
                 ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
+                    ScrollView {
                         Color.clear
                             .frame(height: 0)
                             .id("SCROLL_TOP")
