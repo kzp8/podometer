@@ -400,6 +400,7 @@ struct GymRoutineView: View {
                         .foregroundColor(.gray)
                     
                     TextEditor(text: $logText)
+                        .scrollContentBackground(.hidden)
                         .padding(10)
                         .background(themeManager.cardColor)
                         .cornerRadius(14)

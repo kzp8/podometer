@@ -347,7 +347,7 @@ struct TrainerDashboardView: View {
                     .background(Color.white.opacity(0.03))
                     .cornerRadius(14)
             } else {
-                let visibleUploads = Array(pbManager.trainerUploads.prefix(recentUploadsLimit))
+                let visibleUploads = Array(pbManager.trainerUploads.prefix(4))
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     ForEach(visibleUploads) { upload in
                         Button(action: {
@@ -400,11 +400,11 @@ struct TrainerDashboardView: View {
                     }
                 }
                 
-                if pbManager.trainerUploads.count > recentUploadsLimit {
-                    Button(action: { recentUploadsLimit += 3 }) {
+                if pbManager.trainerUploads.count > 4 {
+                    Button(action: onGoToGallery) {
                         HStack(spacing: 6) {
-                            Image(systemName: "chevron.down")
-                            Text("Ver más entregas (\(pbManager.trainerUploads.count - recentUploadsLimit) restantes)")
+                            Image(systemName: "photo.on.rectangle.angled")
+                            Text("Ver más entregas en Galería (\(pbManager.trainerUploads.count - 4) restantes)")
                                 .font(.system(size: 13, weight: .bold))
                         }
                         .foregroundColor(themeManager.accentColor)
@@ -615,6 +615,7 @@ struct TrainerClientDetailView: View {
     @State private var isActive: Bool = true
     @State private var isTogglingStatus: Bool = false
     @State private var showChangePasswordSheet: Bool = false
+    @State private var showDeleteClientSheet: Bool = false
     
     var body: some View {
         ZStack {
@@ -652,6 +653,11 @@ struct TrainerClientDetailView: View {
         }
         .sheet(isPresented: $showChangePasswordSheet) {
             TrainerChangeClientPasswordSheet(client: client)
+        }
+        .sheet(isPresented: $showDeleteClientSheet) {
+            TrainerDeleteClientSheet(client: client, onDeleted: {
+                dismiss()
+            })
         }
         .alert("Aviso", isPresented: $showAlert) {
             Button("Aceptar", role: .cancel) {}
@@ -701,10 +707,10 @@ struct TrainerClientDetailView: View {
             }
             
             // Botones de acción del cliente
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 // Botón toggle activar/desactivar
                 Button(action: toggleClientStatus) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         if isTogglingStatus {
                             ProgressView().tint(isActive ? .white : .black)
                                 .scaleEffect(0.85)
@@ -714,27 +720,42 @@ struct TrainerClientDetailView: View {
                                 .fontWeight(.bold)
                         }
                     }
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
                     .foregroundColor(isActive ? .white : .black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
-                    .background(isActive ? Color.red.opacity(0.75) : themeManager.accentColor)
+                    .background(isActive ? Color.orange.opacity(0.8) : themeManager.accentColor)
                     .cornerRadius(12)
                 }
                 .disabled(isTogglingStatus)
                 
                 // Botón Cambiar Contraseña
                 Button(action: { showChangePasswordSheet = true }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(systemName: "key.fill")
                         Text("Contraseña")
                             .fontWeight(.bold)
                     }
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .background(Color.white.opacity(0.12))
+                    .cornerRadius(12)
+                }
+                
+                // Botón Eliminar Cliente
+                Button(action: { showDeleteClientSheet = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash.fill")
+                        Text("Eliminar")
+                            .fontWeight(.bold)
+                    }
+                    .font(.system(size: 12))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.red.opacity(0.85))
                     .cornerRadius(12)
                 }
             }
@@ -1520,6 +1541,132 @@ struct TrainerChangeClientPasswordSheet: View {
     }
 }
 
+// MARK: - Sheet para eliminar un cliente de forma permanente con confirmación explícita
+
+@MainActor
+struct TrainerDeleteClientSheet: View {
+    let client: GymUser
+    var onDeleted: () -> Void = {}
+    @EnvironmentObject var pbManager: PocketBaseManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var confirmInput: String = ""
+    @State private var isDeleting: Bool = false
+    @State private var errorMessage: String? = nil
+    
+    var canDelete: Bool {
+        confirmInput.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "confirmar"
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppBackgroundView()
+                
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red.opacity(0.2))
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.title2)
+                                .foregroundColor(.red)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Eliminar Cliente")
+                                .font(.system(size: 20, weight: .black))
+                                .foregroundColor(.white)
+                            Text(client.displayName)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    
+                    Divider().background(Color.white.opacity(0.1))
+                    
+                    Text("Esta acción eliminará de forma PERMANENTE al usuario '\(client.displayName)' y todos sus registros del servidor. No se puede deshacer.")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.9))
+                        .lineSpacing(4)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Escribe 'confirmar' manualmente para habilitar el borrado:")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.gray)
+                        
+                        TextField("Escribe 'confirmar'", text: $confirmInput)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .padding(12)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(canDelete ? Color.red : Color.white.opacity(0.1), lineWidth: 1)
+                            )
+                    }
+                    
+                    if let err = errorMessage {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: deleteClient) {
+                        HStack {
+                            if isDeleting {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "trash.fill")
+                                Text("Eliminar de forma permanente")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(canDelete ? Color.red : Color.red.opacity(0.3))
+                        .cornerRadius(14)
+                    }
+                    .disabled(!canDelete || isDeleting)
+                }
+                .padding(20)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+    }
+    
+    private func deleteClient() {
+        isDeleting = true
+        errorMessage = nil
+        Task {
+            let res = await pbManager.deleteClientAccount(clientId: client.id)
+            await MainActor.run {
+                isDeleting = false
+                if res.success {
+                    onDeleted()
+                    dismiss()
+                } else {
+                    errorMessage = res.message
+                }
+            }
+        }
+    }
+}
+
 // MARK: - 3. PESTAÑA RUTINAS (TRAINER ROUTINES VIEW)
 
 @MainActor
@@ -1967,6 +2114,7 @@ struct TrainerAddRoutineDaySheet: View {
                             .font(.caption)
                             .foregroundColor(.gray)
                         TextEditor(text: $content)
+                            .scrollContentBackground(.hidden)
                             .frame(height: 150)
                             .padding(8)
                             .background(Color.white.opacity(0.06))
@@ -2060,6 +2208,7 @@ struct TrainerEditRoutineDaySheet: View {
                             .font(.caption)
                             .foregroundColor(.gray)
                         TextEditor(text: $content)
+                            .scrollContentBackground(.hidden)
                             .frame(height: 180)
                             .padding(8)
                             .background(Color.white.opacity(0.06))

@@ -1089,8 +1089,45 @@ public final class PocketBaseManager: ObservableObject {
                 }
                 return (false, msg)
             }
+            }
         } catch {
             return (false, "Error de red: \(error.localizedDescription)")
+        }
+    }
+    
+    public func deleteClientAccount(clientId: String) async -> (success: Bool, message: String) {
+        guard let token = authToken, let user = currentUser, user.isAdmin else {
+            return (false, "No tienes permisos de entrenador.")
+        }
+        guard let url = URL(string: "\(normalizedBaseURL)/api/collections/users/records/\(clientId)") else {
+            return (false, "URL no válida.")
+        }
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard let httpResp = resp as? HTTPURLResponse else {
+                return (false, "Error de red al eliminar el cliente.")
+            }
+            if (200...299).contains(httpResp.statusCode) {
+                trainerClients.removeAll { $0.id == clientId }
+                trainerUploads.removeAll { $0.client == clientId }
+                return (true, "Cliente eliminado de forma permanente.")
+            } else if httpResp.statusCode == 404 {
+                return (false, "Permiso denegado por PocketBase (404). En la colección 'users' de PocketBase, debes configurar Delete Rule: id = @request.auth.id || @request.auth.role = \"admin\"")
+            } else {
+                var msg = "Error al eliminar el cliente (código \(httpResp.statusCode))."
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let m = json["message"] as? String {
+                    msg = m
+                }
+                return (false, msg)
+            }
+        } catch {
+            return (false, "Error de conexión: \(error.localizedDescription)")
         }
     }
     
