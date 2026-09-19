@@ -15,51 +15,69 @@ struct DashboardView: View {
     @State private var showActiveTimeInfo: Bool = false
     @State private var isGlowPulsing: Bool = false
     @State private var isIconBouncing: Bool = false
-    @State private var pressedCardIndex: Int? = nil
-    
     var body: some View {
         NavigationStack {
             ZStack {
                 AppBackgroundView()
                 
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        Color.clear
-                            .frame(height: 0)
-                            .id("SCROLL_TOP")
-                        
-                        VStack(spacing: 24) {
-                            if motionManager.isDemoMode {
-                                demoBannerView
-                            }
-                            
-                            stepRingCardView
-                            streakBannerView
-                            metricsGridView
-                            historyInteractiveSectionView
+                VStack(spacing: 0) {
+                    // Cabecera estilizada idéntica al resto de la app
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(themeManager.accentColor.opacity(0.2))
+                                .frame(width: 40, height: 40)
+                            Image(systemName: "figure.walk")
+                                .font(.system(size: 20))
+                                .foregroundColor(themeManager.accentColor)
                         }
-                        .padding(.top, 16)
-                        .padding(.bottom, 75)
+                        
+                        Text("AuraSteps")
+                            .font(.system(size: 22, weight: .black))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        demoButton
                     }
-                    .onChange(of: tabScrollManager.scrollEvent) { event in
-                        guard let event = event, event.tab == 0 else { return }
-                        if event.animated {
-                            withAnimation(.easeOut(duration: 0.25)) {
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                    
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            Color.clear
+                                .frame(height: 0)
+                                .id("SCROLL_TOP")
+                            
+                            VStack(spacing: 24) {
+                                if motionManager.isDemoMode {
+                                    demoBannerView
+                                }
+                                
+                                stepRingCardView
+                                streakBannerView
+                                metricsGridView
+                                historyInteractiveSectionView
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 12)
+                            .padding(.bottom, 75)
+                        }
+                        .onChange(of: tabScrollManager.scrollEvent) { event in
+                            guard let event = event, event.tab == 0 else { return }
+                            if event.animated {
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                                }
+                            } else {
                                 proxy.scrollTo("SCROLL_TOP", anchor: .top)
                             }
-                        } else {
-                            proxy.scrollTo("SCROLL_TOP", anchor: .top)
                         }
-                    }
-                }
-                .navigationTitle("AuraSteps")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        demoButton
                     }
                 }
             }
+            .navigationBarHidden(true)
             .alert("¿Qué es el Tiempo Activo?", isPresented: $showActiveTimeInfo) {
                 Button("Entendido", role: .cancel) {}
             } message: {

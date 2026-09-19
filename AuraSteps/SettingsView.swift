@@ -22,45 +22,66 @@ struct SettingsView: View {
     @State private var isQRButtonPressed = false
     @State private var isPingButtonPressed = false
     @State private var pbEmailInput: String = ""
-    @State private var pbPasswordInput: String = ""
-    
     var body: some View {
         NavigationStack {
             ZStack {
                 AppBackgroundView()
                 
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        Color.clear
-                            .frame(height: 0)
-                            .id("SCROLL_TOP")
-                        
-                        VStack(spacing: 24) {
-                            biometricSection
-                            goalsAndRemindersSection
-                            achievementsGridSection
-                            gymConnectionSection
-                            themeSection
-                            privacySection
-                            debugSessionSection
+                VStack(spacing: 0) {
+                    // Cabecera estilizada idéntica al resto de la app
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(themeManager.accentColor.opacity(0.2))
+                                .frame(width: 40, height: 40)
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(themeManager.accentColor)
                         }
-                        .padding(.top, 16)
-                        .padding(.bottom, 75)
+                        
+                        Text("Ajustes")
+                            .font(.system(size: 22, weight: .black))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
                     }
-                    .onChange(of: tabScrollManager.scrollEvent) { event in
-                        guard let event = event, event.tab == tabIndex else { return }
-                        if event.animated {
-                            withAnimation(.easeOut(duration: 0.25)) {
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                    
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            Color.clear
+                                .frame(height: 0)
+                                .id("SCROLL_TOP")
+                            
+                            VStack(spacing: 24) {
+                                biometricSection
+                                goalsAndRemindersSection
+                                achievementsGridSection
+                                gymConnectionSection
+                                themeSection
+                                privacySection
+                                debugSessionSection
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 12)
+                            .padding(.bottom, 75)
+                        }
+                        .onChange(of: tabScrollManager.scrollEvent) { event in
+                            guard let event = event, event.tab == tabIndex else { return }
+                            if event.animated {
+                                withAnimation(.easeOut(duration: 0.25)) {
+                                    proxy.scrollTo("SCROLL_TOP", anchor: .top)
+                                }
+                            } else {
                                 proxy.scrollTo("SCROLL_TOP", anchor: .top)
                             }
-                        } else {
-                            proxy.scrollTo("SCROLL_TOP", anchor: .top)
                         }
                     }
                 }
             }
-            .navigationTitle("Ajustes")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
             .sheet(isPresented: $isPresentingQRScanner) {
                 QRScannerSheet { scannedString in
                     isPresentingQRScanner = false
